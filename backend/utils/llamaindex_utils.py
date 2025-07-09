@@ -1,21 +1,49 @@
-from llama_index.readers.file.base import PDFReader
-from llama_index.core.node_parser import SemanticChunker
-from llama_index.embeddings.openai import OpenAIEmbedding  # reemplazable
 from llama_index.core import Document
-import boto3
-import tempfile
+from llama_index.core.node_parser import SemanticSplitterNodeParser
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from backend.utils.db_actions import save_chunks_to_db
+import uuid
 
-def process_pdf_from_s3(bucket_name, object_name):
-    s3 = boto3.client('s3')
-    with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp_file:
-        s3.download_fileobj(bucket_name, object_name, tmp_file)
-        tmp_file.seek(0)
+def chunk_faq_semantic(text: str):
+    """Chunker semántico para FAQs con embeddings de e5-base-v2"""
+    doc = Document(text=text)
+    embed_model = HuggingFaceEmbedding(model_name="intfloat/e5-base-v2")
+    
+    chunker = SemanticSplitterNodeParser(
+        embed_model=embed_model,
+        buffer_size=2,
+        breakpoint_percentile_threshold=94
+    )
+    nodes = chunker.get_nodes_from_documents([doc])
+    
+    # 💥 Embedding manual de los nodos
+    embeddings = embed_model.get_text_embedding_batch([n.text for n in nodes])
+    for node, embedding in zip(nodes, embeddings):
+        node.embedding = embedding
+    
+    return nodes
 
-        reader = PDFReader()
-        docs = reader.load_data(tmp_file.name)
+# Ejemplo de uso
+faq_texto = """
+    Pregunta: ¿Qué es el producto AIStart?
+    Respuesta: AIStart es una plataforma de inteligencia artificial que ayuda a las startups a automatizar procesos de marketing...
 
-        embed_model = OpenAIEmbedding()  # usar Gemini u Ollama si querés
-        chunker = SemanticChunker(embed_model)
-        nodes = chunker.get_nodes_from_documents(docs)
+    Pregunta: ¿Cómo se integra AIStart con otras herramientas?
+    Respuesta: AIStart ofrece una API RESTful...
 
-        return nodes
+    Pregunta: ¿Es seguro usar AIStart con datos sensibles?
+    Respuesta: Sí, la seguridad es una prioridad...
+
+    Pregunta: ¿Cuánto tiempo lleva implementar AIStart?
+    Respuesta: La implementación depende del caso de uso...
+    """
+
+if __name__ == "__main__":
+    print("➡️ Procesando chunks semánticos con embeddings...")
+    chunks = chunk_faq_semantic(faq_texto)
+    print(f"✅ Chunks generados: {len(chunks)}")
+
+    doc_id = str(uuid.uuid4())  # ID único del documento
+    print(f"📥 Guardando chunks en PostgreSQL con doc_id = {doc_id}...")
+    save_chunks_to_db(chunks, doc_id)
+    print("✅ Chunks guardados con éxito.")
