@@ -1,3 +1,4 @@
+from datetime import datetime
 import streamlit as st
 from pdf2image import convert_from_bytes
 from PIL import Image
@@ -5,11 +6,17 @@ import base64
 import requests
 import os
 from dotenv import load_dotenv
+
+from backend.utils.s3_utils import upload_text_to_s3
 load_dotenv()
 
 # --- Configuración clave API (Gemini Pro Vision) ---
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 GEMINI_API_URL = os.getenv('GEMINI_API_URL')
+
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+S3_BUCKET = os.getenv("BUCKET_NAME")
 
 def image_to_base64(image: Image.Image) -> str:
     """Convierte imagen PIL a base64 para enviar a Gemini"""
@@ -76,6 +83,26 @@ if option == "📄 Cargar documento":
 
         st.success("Texto extraído del PDF:")
         st.text_area("Texto completo del documento", all_text, height=400)
+        # subir a S3
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        s3_object_name = f"gemini_texts/{timestamp}_faq.txt"
 
+        upload_text_to_s3(all_text, S3_BUCKET, s3_object_name, AWS_ACCESS_KEY, AWS_SECRET_KEY)
+        st.success("Texto subido a S3 correctamente.")
+
+        # Notificar al backend para procesar el archivo
+        backend_url = "http://localhost:8000/process-s3"
+        data = {"bucket": S3_BUCKET, "key": s3_object_name}
+        try:
+            response = requests.post(backend_url, json=data)
+            if response.status_code == 200:
+                st.success("Tarea enviada para procesar el archivo.")
+            else:
+                st.error(f"Error al enviar tarea: {response.text}")
+        except Exception as e:
+            st.error(f"Error de conexión al backend: {e}")
+        
 elif option == "🤖 Ir al chat":
     st.write("Aquí iría tu interfaz de chat.")
+
+
