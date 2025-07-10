@@ -7,6 +7,9 @@ from db.base import Base, engine
 import os
 from dotenv import load_dotenv
 import uuid
+from supervisor.graph_builder import app as graph_app  # El grafo ya compilado
+
+
 
 # Cargar variables del archivo .env
 load_dotenv()
@@ -18,7 +21,10 @@ app = FastAPI()
 # Crear tablas si no existen
 Base.metadata.create_all(bind=engine)
 
-
+@app.post("/chat")
+def chat_endpoint(state: dict):
+    result = graph_app.invoke(state)
+    return result
 
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):

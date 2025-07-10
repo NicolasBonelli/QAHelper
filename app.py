@@ -5,6 +5,7 @@ import base64
 import requests
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # --- Configuración clave API (Gemini Pro Vision) ---

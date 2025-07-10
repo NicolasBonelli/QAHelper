@@ -1,4 +1,4 @@
-from ..models.db import DocumentEmbedding
+from ..models.db import DocumentEmbedding, ChatSession, ChatMessage
 from backend.utils.db_connection import SessionLocal
 
 def save_chunks_to_db(nodes, doc_id: str):
@@ -22,5 +22,23 @@ def save_chunks_to_db(nodes, doc_id: str):
         db.rollback()
         print(f"❌ Error: {e}")
         raise e
+    finally:
+        db.close()
+
+def save_message(session_id: str, role: str, message: str):
+    db = SessionLocal()
+    try:
+        # Asegurar que exista la sesión
+        session = db.query(ChatSession).filter_by(session_id=session_id).first()
+        if not session:
+            session = ChatSession(session_id=session_id)
+            db.add(session)
+
+        msg = ChatMessage(session_id=session_id, role=role, message=message)
+        db.add(msg)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print("[DB Logger Error]", e)
     finally:
         db.close()
