@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
-from backend.utils.db_connection import Base, engine
-from backend.models.db import DocumentEmbedding
+from utils.db_connection import Base, engine
+from models.db import DocumentEmbedding
 
 # Habilitar la extensión pgvector
 print("🛠️ Habilitando extensión vector en la base...")

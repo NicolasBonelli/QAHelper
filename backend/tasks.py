@@ -2,6 +2,9 @@ from celery import Celery
 import boto3
 import os
 from dotenv import load_dotenv
+from utils.llamaindex_utils import chunk_faq_semantic
+from utils.db_actions import save_chunks_to_db
+import uuid
 
 load_dotenv()
 
@@ -18,6 +21,10 @@ def process_s3_file(bucket, key):
     content = response["Body"].read().decode("utf-8")
     print(f"✅ Texto procesado:\n{content[:200]}...")
 
-    # Aquí llama al código de LLM de tu compañero
-    # Por ejemplo:
-    #process_pdf_from_s3(content)  # <-- Ajusta los argumentos según lo que necesite su función
+    chunks = chunk_faq_semantic(content)
+    print(f"✅ Chunks generados: {len(chunks)}")
+
+    doc_id = str(uuid.uuid4())  # ID único del documento
+    print(f"📥 Guardando chunks en PostgreSQL con doc_id = {doc_id}...")
+    save_chunks_to_db(chunks, doc_id)
+    print("✅ Chunks guardados con éxito.")

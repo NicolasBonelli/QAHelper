@@ -1,7 +1,7 @@
 from llama_index.core import Document
 from llama_index.core.node_parser import SemanticSplitterNodeParser
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from backend.utils.db_actions import save_chunks_to_db
+from utils.db_actions import save_chunks_to_db
 import uuid
 
 def chunk_faq_semantic(text: str):

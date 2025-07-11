@@ -1,15 +1,6 @@
 version: "3.8"
 
 services:
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
 
   backend:
     build: 
@@ -20,33 +11,21 @@ services:
       - ./backend:/app
     ports:
       - "8000:8000"
-    depends_on:
-      - rabbitmq
+
     env_file:
       - .env
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  celery_worker:
+  rag_agent:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    container_name: celery_worker
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - rabbitmq
-      - backend
-    env_file:
-      - .env
-    command: celery -A tasks.celery_app worker --loglevel=info
-
-  streamlit:
-    build: .
-    container_name: streamlit_app
-    volumes:
-      - .:/app
+      dockerfile: Dockerfile.agent
+    container_name: rag_agent
+    command: uvicorn agent_servers.rag_server:app --host 0.0.0.0 --port 9001 --reload
     ports:
-      - "8501:8501"
+      - "9001:9001"
     env_file:
       - .env
-    command: streamlit run App.py
+    volumes:
+    - ./agent_servers:/app/agent_servers
+    - ./backend:/app/backend

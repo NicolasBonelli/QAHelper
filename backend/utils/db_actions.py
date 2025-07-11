@@ -1,5 +1,5 @@
-from ..models.db import DocumentEmbedding
-from backend.utils.db_connection import SessionLocal
+from models.db import DocumentEmbedding
+from utils.db_connection import SessionLocal
 
 def save_chunks_to_db(nodes, doc_id: str):
     db = SessionLocal()
