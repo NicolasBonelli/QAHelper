@@ -103,6 +103,17 @@ if option == "📄 Cargar documento":
             st.error(f"Error de conexión al backend: {e}")
         
 elif option == "🤖 Ir al chat":
+    import uuid
+    st.session_state["session_id"] = str(uuid.uuid4())
     st.write("Aquí iría tu interfaz de chat.")
+
+    # Ejemplo de cómo usar el session_id en el estado:
+    user_input = st.text_input("Tu mensaje:")
+    if user_input:
+        state = {
+            "input": user_input,
+            "session_id": st.session_state["session_id"]
+        }
+        # Aquí puedes enviar 'state' al backend
 
 

@@ -1,4 +1,4 @@
-from utils.db_connection import SessionLocal
+from backend.utils.db_connection import SessionLocal
 from ..models.db import DocumentEmbedding, ChatSession, ChatMessage
 
 def save_chunks_to_db(nodes, doc_id: str):

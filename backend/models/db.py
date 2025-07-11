@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, Text, String, TIMESTAMP, UUID, ForeignKey, func
 from pgvector.sqlalchemy import Vector  # <-- IMPORT CORRECTO
-from utils.db_connection import Base  # <-- Usá la ruta real a Base
+from backend.utils.db_connection import Base  # <-- Usá la ruta real a Base
 
 
 class DocumentEmbedding(Base):
