@@ -17,17 +17,14 @@ mcp = FastMCP(
 # Herramientas implementadas
 @mcp.tool
 def search_documents(query: str):
-    """Busca en los documentos (simulado) Argumentos: query:str"""
+    """Busca en los documentos para resumenes sobre ciertos aspectos de los productos de la empresa. Argumentos: query:str"""
     return f"Resultados para '{query}':\n- Doc 1\n- Doc 2"
 
 @mcp.tool
-def faq_query(question: str):
-    """Responde FAQs (simulado) Argumentos: question:str"""
-    answers = {
-        "horario": "Atención de 9am a 6pm",
-        "contacto": "contacto@empresa.com"
-    }
-    return answers.get(question.lower(), "No tengo información sobre eso")
+def faq_query(query: str):
+    """Responde FAQs sobre la empresa. Argumentos: question:str"""
+    horario=" Horario de atencion de 8 am a 5 pm"
+    return horario
 
 
 if __name__ == "__main__":

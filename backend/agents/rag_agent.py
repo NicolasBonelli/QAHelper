@@ -1,19 +1,24 @@
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_postgres import PostgresChatMessageHistory
+from langchain.memory import ConversationBufferMemory
 import requests
-from agent_servers.utils.mcp_dynamic_adapter import MCPDynamicAdapter
+import psycopg
 import os
 from dotenv import load_dotenv
 import asyncio
 import nest_asyncio
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
+from uuid import uuid4
 nest_asyncio.apply()
-load_dotenv()
-MCP_SERVER_URL = os.getenv("MCP_RAG_SERVER_URL")
+load_dotenv(override=True)
+from backend.config import DB_URL
 
+MCP_SERVER_URL= os.getenv("MCP_RAG_SERVER_URL")
 MODEL = os.getenv("MODEL")
 
 # Prompt mejorado para el agente RAG
@@ -27,8 +32,7 @@ Action: search_documents"""
 EXECUTE_TOOL_PROMPT = """Eres un asistente especializado en proporcionar respuestas basadas en información recuperada de documentos y bases de conocimiento.
 
 ENTRADA:
-- Consulta del usuario: {user_input}
-- Información recuperada: {tool_result}
+-Input del usuario junto con la informacion recuperada {input_block}
 
 TAREA:
 Generar una respuesta completa y útil basándote exclusivamente en la información proporcionada.
@@ -40,6 +44,7 @@ REGLAS:
 • Estructura la respuesta de forma clara y organizada
 • Cita o referencia la fuente cuando sea relevante
 • Si no hay resultados, ofrece alternativas: "Podrías intentar preguntar sobre..."
+• No pongas tildes en español , deja todo sin tilde como por ejemplo informacion sin tilde en la "o"
 
 CASOS ESPECIALES:
 - Si el tool_result contiene múltiples documentos: Resume los puntos clave
@@ -48,8 +53,7 @@ CASOS ESPECIALES:
 
 Genera una respuesta natural y útil:"""
 
-llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0)
-adapter = MCPDynamicAdapter(MCP_SERVER_URL)
+llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0,google_api_key=os.getenv("GEMINI_API_KEY"))
 # Funciones para interactuar con MCP Server
 async def get_available_tools():
     """Obtiene todas las herramientas disponibles del servidor MCP"""
@@ -60,7 +64,8 @@ async def get_available_tools():
                 
                 tools_result = await session.list_tools("list_tools")
                 tools_info = []
-                
+                print("Obtención del tools result:")
+                print(tools_result)
                 for tool in tools_result.tools:
                     tools_info.append({
                         "name": tool.name,
@@ -97,79 +102,88 @@ def execute_tool_sync(tool_name: str, arguments: dict):
     return asyncio.run(execute_tool(tool_name, arguments))
 
 
-
-def get_agent_executor():
-    """Crea y retorna el ejecutor del agente con las herramientas MCP"""
-    try:
-        tools = adapter.load_tools()
-        
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", SYSTEM_PROMPT),
-            ("user", "{input}"),
-            MessagesPlaceholder("agent_scratchpad")
-        ])
-        
-        agent = create_tool_calling_agent(llm, tools, prompt)
-        return AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
-    except Exception as e:
-        print(f"Error creando agent executor: {e}")
-        return None
+def get_tool_selection_chain(llm):
+    prompt = PromptTemplate.from_template(
+        SELECT_TOOL_PROMPT  
+    )
+    return LLMChain(llm=llm, prompt=prompt)
+def get_chat_memory(session_id: str):
+    """Devuelve la memoria basada en historial en PostgreSQL"""
     
+    # Convertir la URL de SQLAlchemy a formato psycopg
+    psycopg_url = DB_URL.replace("postgresql+psycopg2://", "postgresql://")
+    
+    # Establecer conexión sincrónica
+    sync_connection = psycopg.connect(psycopg_url)
+    
+    # Crear las tablas si no existen (solo necesario una vez)
+    table_name = "chat_messages"
+    PostgresChatMessageHistory.create_tables(sync_connection, table_name)
+    
+    # Inicializar el historial de chat
+    history = PostgresChatMessageHistory(
+        table_name,
+        session_id,
+        sync_connection=sync_connection
+    )
+    
+    return ConversationBufferMemory(
+        chat_memory=history,
+        return_messages=True
+    )
 
 
-def process_user_query(user_input: str) -> str:
-    """Procesa la consulta del usuario usando el agente RAG"""
-    try:
-        # Verifica conexión al servidor MCP
-        if not check_mcp_connection():
-            return "Error: No se puede conectar al servidor MCP. Verifica que el servidor esté ejecutándose."
-            
-        executor = get_agent_executor()
-        if not executor:
-            return "Error: No se pudo crear el agente ejecutor."
-            
-        result = executor.invoke({"input": user_input})
-        return result.get("output", "No se pudo procesar la consulta.")
-        
-    except Exception as e:
-        print(f"Error procesando consulta: {e}")
-        return f"Error interno: {str(e)}"
 
-def check_mcp_connection() -> bool:
-    """Verifica que el servidor MCP esté disponible"""
-    try:
-        response = requests.get(f"{MCP_SERVER_URL}/health", timeout=5)
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Error verificando conexión MCP: {e}")
-        return False
 
 # NODO PRINCIPAL PARA LANGGRAPH
 def rag_agent_node(state):
-    """
-    Nodo del agente RAG para LangGraph.
-    
-    Recibe el estado con:
-    - input: consulta del usuario
-    
-    Retorna:
-    - tool_response: respuesta procesada del agente
-    """
     try:
         user_input = state.get("input", "")
-        
+        session_id = state.get("session_id")  # asumimos que viene del front
+
         if not user_input:
             return {"tool_response": "Error: No se recibió input del usuario."}
-        
+
         print(f"[RAG Agent] Procesando: {user_input}")
+
+        # Paso 1: Obtener herramientas
+        tools = asyncio.run(get_available_tools())
+
+        tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
+
+        # Paso 2: Usar LLMChain para decidir qué tool usar
+        tool_selector = get_tool_selection_chain(llm)
+        tool_decision = tool_selector.run(tools=tools_str, user_input=user_input).strip()
+        tool_name_raw = tool_decision.strip()
+        tool_name = tool_name_raw.replace("Action:", "").strip()
+        print(f"[RAG Agent] Tool seleccionada: {tool_name}")
+
+        # Paso 3: Ejecutar herramienta seleccionada}
         
-        # Procesar la consulta usando el agente RAG
-        response = process_user_query(user_input)
-        
-        print(f"[RAG Agent] Respuesta generada: {response}")
-        
-        return {"tool_response": response}
-        
+        tool_result = asyncio.run(execute_tool(tool_name, {"query": user_input}))
+        print(f"[RAG Agent] Resultado de tool: {tool_result}")
+
+        # Paso 4: Usar memoria de conversación y LLM para generar respuesta final
+        memory = get_chat_memory(session_id)
+
+        agent_prompt = ChatPromptTemplate.from_messages([
+            ("system", EXECUTE_TOOL_PROMPT),
+            ("user", "{input_block}")
+        ])
+        input_block = f"Consulta: {user_input}\n\nInformación recuperada:\n{tool_result}"
+
+        reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt, memory=memory)
+        # CORRECCIÓN: usar invoke() y extraer 'text'
+        final_output = reasoning_chain.invoke({"input_block": input_block})
+
+        # Robusto: si es string (primera vez), lo usamos directo; si es dict, sacamos solo el texto generado
+        if isinstance(final_output, dict):
+            final_response = final_output.get("text", str(final_output))
+        else:
+            final_response = final_output
+
+        return {"tool_response": final_response}
+
     except Exception as e:
         error_msg = f"Error en rag_agent_node: {str(e)}"
         print(f"[RAG Agent ERROR] {error_msg}")
@@ -181,7 +195,9 @@ def test_rag_agent(query: str = "¿Cuál es el horario de atención?"):
     print(f"Testing RAG Agent with query: {query}")
     
     # Simular estado como en LangGraph
-    test_state = {"input": query}
+    #test_state = {"input": query,"session_id": str(uuid4())}
+    test_state = {"input": query,"session_id": "39105cb8-ba8c-40c6-aaf7-dd8571b605e0"}
+    
     result = rag_agent_node(test_state)
     
     print(f"Result: {result}")
@@ -190,4 +206,4 @@ def test_rag_agent(query: str = "¿Cuál es el horario de atención?"):
 if __name__ == "__main__":
     # Test del agente
     test_rag_agent("¿Cuál es el horario de atención?")
-    test_rag_agent("Busca información sobre perros")
+    
