@@ -1,18 +1,14 @@
-from backend.agents.rag_agent import process_user_query
-import time
+from langchain_google_genai import ChatGoogleGenerativeAI
+import os
+from dotenv import load_dotenv
+print()
+load_dotenv()
 
-def test_agent():
-    queries = [
-        "Busca documentos sobre políticas de seguridad",
-        "¿Cuál es el horario de atención?",
-        "Necesito información sobre onboarding"
-    ]
-    
-    for query in queries:
-        print(f"\nUsuario: {query}")
-        start_time = time.time()
-        response = process_user_query(query)
-        print(f"Agente ({time.time()-start_time:.2f}s): {response}")
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-pro-latest",
+    temperature=0,
+    google_api_key=os.getenv("GEMINI_API_KEY")
+)
 
-if __name__ == "__main__":
-    test_agent()
+response = llm.invoke("¿Qué es FastAPI?")
+print(response)
