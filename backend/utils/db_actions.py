@@ -29,9 +29,9 @@ def save_message(session_id: str, role: str, message: str):
     db = SessionLocal()
     try:
         # Asegurar que exista la sesión
-        session = db.query(ChatSession).filter_by(session_id=session_id).first()
+        session = db.query(ChatSession).filter_by(id=session_id).first()
         if not session:
-            session = ChatSession(session_id=session_id)
+            session = ChatSession(id=session_id)
             db.add(session)
 
         msg = ChatMessage(session_id=session_id, role=role, message=message)
@@ -42,3 +42,7 @@ def save_message(session_id: str, role: str, message: str):
         print("[DB Logger Error]", e)
     finally:
         db.close()
+
+if __name__ == "__main__":
+    save_message("39105cb8-ba8c-40c6-aaf7-dd8571b605e0","ai","A ver")
+    print("Anduvo")

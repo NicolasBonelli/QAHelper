@@ -14,16 +14,15 @@ class DocumentEmbedding(Base):
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
-    session_id = Column(UUID, primary_key=True)
-    user_id = Column(Text, nullable=False)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    id= Column(UUID, primary_key=True)
+    started_at = Column(TIMESTAMP, server_default=func.now())
 
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(UUID, ForeignKey("chat_sessions.session_id"), nullable=False)
+    session_id = Column(UUID, ForeignKey("chat_sessions.id"), nullable=False)
     role = Column(Text, nullable=False)  # 'user' o 'agent'
     message = Column(Text, nullable=False)
     timestamp = Column(TIMESTAMP, server_default=func.now())

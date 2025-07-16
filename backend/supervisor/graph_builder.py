@@ -44,8 +44,9 @@ def log_agent_response_node(state):
 # Guarda la respuesta final del agente
 # (antes de pasarlo opcionalmente por Guardrails)
 def finalize_output(state):
+    print(state)
     return {
-        "final_output": state.get("tool_response", "[Sin respuesta]")
+        "final_output": state.get("final_output")
     }
 
 # Importar los agentes
@@ -63,10 +64,16 @@ def agent_prueba(state):
     """
     return {"tool_response": f"Respuesta de prueba: {state['input']}"}
 
+def guardrail_node(state: dict) -> dict:
+    final_output = state.get("tool_response")
+    resultado = final_output + " + Resultado del guardrail"
+    return {
+        **state,
+        "final_output": resultado
+    }
 
 # Agregar nodos
-builder.add_node("log_user_message", log_user_message_node)
-builder.add_node("log_agent_response", log_agent_response_node)
+builder.add_node("guardrail", guardrail_node)
 builder.add_node("classify", classify_intent)
 builder.add_node("rag_agent", rag_agent_node)
 builder.add_node("sentiment_agent", agent_prueba)
@@ -75,8 +82,9 @@ builder.add_node("tech_agent", agent_prueba)
 builder.add_node("finalize", finalize_output)
 
 # Flujo del grafo
-builder.set_entry_point("log_user_message")
-builder.add_edge("log_user_message", "classify")
+builder.set_entry_point("classify")
+
+
 
 def route_based_on_agent(state: State) -> str:
     return state["next_agent"]
@@ -93,12 +101,12 @@ builder.add_conditional_edges(
 )
 # Cada agente devuelve el resultado en "tool_response"
 # Después se pasa a finalize
-builder.add_edge("rag_agent", "log_agent_response")
-builder.add_edge("sentiment_agent", "log_agent_response")
-builder.add_edge("email_agent", "log_agent_response")
-builder.add_edge("tech_agent", "log_agent_response")
+builder.add_edge("rag_agent", "guardrail")
+builder.add_edge("sentiment_agent", "guardrail")
+builder.add_edge("email_agent", "guardrail")
+builder.add_edge("tech_agent", "guardrail")
 
-builder.add_edge("log_agent_response", "finalize")
+builder.add_edge("guardrail", "finalize")
 
 
 # Nodo final del grafo
@@ -117,3 +125,21 @@ if __name__ == "__main__":
     with open("output/03-Graph_Basics.png", "wb") as f:
         f.write(app.get_graph().draw_mermaid_png())
 
+    # Generar sesión ficticia para test
+    test_session_id = "39105cb8-ba8c-40c6-aaf7-dd8571b605e0"
+    print("🧪 Sesión de test:", test_session_id)
+
+    # Crear estado inicial
+    initial_state = {
+        "input": "¿Cuál es el horario de atención?",
+        "next_agent": "",  # lo setea el nodo 'classify'
+        "tool_response": "",
+        "final_output": "",
+        "session_id": test_session_id
+    }
+
+    # Ejecutar grafo
+    result = app.invoke(initial_state)
+
+    print("\n✅ Resultado final:")
+    print(result["final_output"])

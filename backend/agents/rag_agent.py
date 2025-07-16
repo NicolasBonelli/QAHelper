@@ -2,7 +2,6 @@ from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_postgres import PostgresChatMessageHistory
-from langchain.memory import ConversationBufferMemory
 import requests
 import psycopg
 import os
@@ -14,9 +13,13 @@ from mcp.client.sse import sse_client
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from uuid import uuid4
+from backend.config import DB_URL
+from langchain.memory import ConversationBufferMemory
+from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
+
+
 nest_asyncio.apply()
 load_dotenv(override=True)
-from backend.config import DB_URL
 
 MCP_SERVER_URL= os.getenv("MCP_RAG_SERVER_URL")
 MODEL = os.getenv("MODEL")
@@ -64,8 +67,6 @@ async def get_available_tools():
                 
                 tools_result = await session.list_tools("list_tools")
                 tools_info = []
-                print("Obtención del tools result:")
-                print(tools_result)
                 for tool in tools_result.tools:
                     tools_info.append({
                         "name": tool.name,
@@ -118,20 +119,12 @@ def get_chat_memory(session_id: str):
     
     # Crear las tablas si no existen (solo necesario una vez)
     table_name = "chat_messages"
-    PostgresChatMessageHistory.create_tables(sync_connection, table_name)
-    
-    # Inicializar el historial de chat
-    history = PostgresChatMessageHistory(
-        table_name,
-        session_id,
-        sync_connection=sync_connection
-    )
-    
+
+    history = SQLAlchemyChatMessageHistory(session_id=session_id)
     return ConversationBufferMemory(
         chat_memory=history,
         return_messages=True
     )
-
 
 
 

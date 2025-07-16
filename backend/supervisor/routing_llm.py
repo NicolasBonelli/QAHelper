@@ -4,11 +4,11 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 MODEL= os.getenv("MODEL")
 # Inicializar LLM de Gemini
-llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0)
+llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0,google_api_key=os.getenv("GEMINI_API_KEY"))
 
 # Mapeo de intenciones
 AGENT_MAP = {
