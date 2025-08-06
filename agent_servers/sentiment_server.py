@@ -4,6 +4,10 @@ from pydantic import BaseModel
 from fastapi import FastAPI
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv(override=True)
 
 # Configuración MCP
 mcp = FastMCP(
@@ -13,12 +17,28 @@ mcp = FastMCP(
     port=8050
 )
 
-# Modelo LLM
-llm = ChatGoogleGenerativeAI(
-    model=os.getenv("MODEL"),
-    temperature=0,
-    google_api_key=os.getenv("GEMINI_API_KEY")
-)
+# Modelo LLM with fallback values
+model_name = os.getenv("MODEL", "gemini-pro")
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    print("Warning: GEMINI_API_KEY not found in environment variables")
+    # Create a mock LLM for testing purposes
+    class MockLLM:
+        def invoke(self, prompt):
+            class MockResponse:
+                @property
+                def content(self):
+                    return "Mock response: " + prompt[:50] + "..."
+            return MockResponse()
+    
+    llm = MockLLM()
+else:
+    llm = ChatGoogleGenerativeAI(
+        model=model_name,
+        temperature=0,
+        google_api_key=api_key
+    )
 
 @mcp.tool
 def calm_down_user(text: str) -> str:

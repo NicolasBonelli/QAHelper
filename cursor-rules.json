@@ -1,0 +1,38 @@
+{
+    "exclusions": [
+      "**/.env",
+      "**/.env.*",
+      "**/venv/**",
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "**/.git/**",
+      "**/node_modules/**"
+    ],
+    "rules": [
+      {
+        "pattern": "**/*.py",
+        "reason": "Archivos Python del backend y agentes."
+      },
+      {
+        "pattern": "graph_builder.py",
+        "reason": "Contiene la definicion del grafo de LangGraph."
+      },
+      {
+        "pattern": "rag_agent.py",
+        "reason": "Implementacion del agente RAG que usa tools desde un servidor MCP y responde con Gemini."
+      },
+      {
+        "pattern": "guardrail.py",
+        "reason": "Moderacion de respuestas del agente con reglas de contenido."
+      },
+      {
+        "pattern": "models/db.py",
+        "reason": "Definiciones ORM para tablas de embeddings, sesiones y mensajes."
+      },
+      {
+        "pattern": "**/moderation/**",
+        "reason": "L贸gica de guardrails para sanitizar mensajes del bot."
+      }
+    ]
+  }
+  
