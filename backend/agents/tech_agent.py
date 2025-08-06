@@ -76,10 +76,14 @@ def get_tool_selection_chain():
 def tech_agent_node(state):
     try:
         user_input = state.get("input", "")
+        messages = state.get("messages", [])
+        executed_agents = state.get("executed_agents", [])
+        
         if not user_input:
             return {"tool_response": "Error: No se recibió input del usuario."}
 
         print(f"[Tech Agent] Procesando: {user_input}")
+        print(f"[Tech Agent] Agentes ejecutados previamente: {executed_agents}")
 
         # Use asyncio.run() only if not already in an async context
         try:
@@ -125,11 +129,41 @@ def tech_agent_node(state):
             result = asyncio.run(execute_tool(tool_name, {argument_key: user_input}))
 
         print(f"[Tech Agent] Resultado: {result}")
-        return {"tool_response": result}
+        
+        # Agregar respuesta al historial de mensajes
+        messages.append({
+            "role": "agent",
+            "agent": "tech_agent",
+            "content": result,
+            "timestamp": "tech_response"
+        })
+        
+        return {
+            "tool_response": result,
+            "current_agent": "tech_agent",
+            "messages": messages,
+            "executed_agents": executed_agents
+        }
 
     except Exception as e:
         print(f"Error en tech_agent_node: {e}")
-        return {"tool_response": f"Error: {str(e)}"}
+        error_msg = f"Error: {str(e)}"
+        
+        # Agregar error al historial
+        messages = state.get("messages", [])
+        messages.append({
+            "role": "agent",
+            "agent": "tech_agent",
+            "content": error_msg,
+            "timestamp": "tech_error"
+        })
+        
+        return {
+            "tool_response": error_msg,
+            "current_agent": "tech_agent",
+            "messages": messages,
+            "executed_agents": executed_agents
+        }
 
 # Test local
 def test_tech_agent(query="nombre,edad,ciudad\nJuan,32,Cordoba\nAna,28,Rosario"):

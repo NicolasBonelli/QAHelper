@@ -16,16 +16,9 @@ def test_sentiment_tech_flow():
     print("\n🧠 Test Específico: Sentimientos → Tech → Guardrail")
     print("=" * 60)
     
-    test_input = "Me siento muy estresado con el sistema y necesito comprar una nueva licencia de software"
+    test_input = '''Esta app es lo peor que vi, un asco, nunca responden.
+    Pero, les voy a dar una ultima oportunidad, resumime esto: Este es un articulo largo sobre la importancia de la IA en la educación moderna. La IA permite personalizar el aprendizaje y mejorar los resultados educativos. Sin embargo, también plantea desafíos éticos que deben ser abordados...'''
     
-    print(f"📝 Input: {test_input}")
-    print("🎯 Flujo esperado:")
-    print("1. supervisor → Clasifica como sentimientos")
-    print("2. sentiment_agent → Analiza emociones")
-    print("3. supervisor → Evalúa y ve que también necesita acción técnica")
-    print("4. tech_agent → Procesa compra de licencia")
-    print("5. supervisor → Evalúa y decide ir al guardrail")
-    print("6. guardrail → finalize")
     
     initial_state = {
         "input": test_input,

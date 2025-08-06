@@ -97,12 +97,20 @@ def summarize_text(text: str) -> str:
     try:
         logger.info(f"Summarizing text: {text[:100]}...")
         prompt = f"""
-        Resume el siguiente contenido en un párrafo claro y conciso:
+        Eres un asistente de procesamiento de texto. El usuario puede incluir comentarios, insultos, pedidos o mensajes mezclados con el texto que realmente desea que resumas.
 
-        "{text}"
+        Tu tarea es:
 
-        El resumen debe capturar las ideas principales. No uses tildes.
+        1. Identificar únicamente el texto que el usuario desea resumir. Este puede estar precedido por frases como "resumime esto:", "resumí", "hacé un resumen", etc.
+        2. Ignorar cualquier comentario que no forme parte del texto a resumir (por ejemplo: quejas, insultos, saludos o pedidos).
+        3. Si no encuentras un texto claro para resumir, responde: "No se detectó texto para resumir."
+
+        Texto completo del usuario:
+        \"\"\"{text}\"\"\"
+
+        Extrae solo el contenido relevante y resume ese contenido en un párrafo claro y conciso. El resumen debe contener las ideas principales y no debe incluir opiniones del usuario. No uses tildes. Solo devuelve el resumen limpio, sin encabezados ni explicaciones.
         """
+
         result = llm.invoke(prompt).content.strip()
         logger.info("Text summarized successfully")
         return result

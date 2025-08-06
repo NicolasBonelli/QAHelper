@@ -69,11 +69,16 @@ def get_tool_selection_chain():
 # Nodo principal para LangGraph o uso directo
 def sentiment_agent_node(state):
     try:
+        print("EEEEEEEEEEEEEEEEEntre a sentiment agent")
         user_input = state.get("input", "")
+        messages = state.get("messages", [])
+        executed_agents = state.get("executed_agents", [])
+        
         if not user_input:
             return {"tool_response": "Error: No se recibió input del usuario."}
 
         print(f"[Sentiment Agent] Procesando: {user_input}")
+        print(f"[Sentiment Agent] Agentes ejecutados previamente: {executed_agents}")
 
         tools = asyncio.run(get_available_tools())
         tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
@@ -97,11 +102,41 @@ def sentiment_agent_node(state):
 
         result = asyncio.run(execute_tool(tool_name, {"text": user_input}))
         print(f"[Sentiment Agent] Resultado: {result}")
-        return {"tool_response": result}
+        
+        # Agregar respuesta al historial de mensajes
+        messages.append({
+            "role": "agent",
+            "agent": "sentiment_agent",
+            "content": result,
+            "timestamp": "sentiment_response"
+        })
+        
+        return {
+            "tool_response": result,
+            "current_agent": "sentiment_agent",
+            "messages": messages,
+            "executed_agents": executed_agents
+        }
 
     except Exception as e:
         print(f"Error en sentiment_agent_node: {e}")
-        return {"tool_response": f"Error: {str(e)}"}
+        error_msg = f"Error: {str(e)}"
+        
+        # Agregar error al historial
+        messages = state.get("messages", [])
+        messages.append({
+            "role": "agent",
+            "agent": "sentiment_agent",
+            "content": error_msg,
+            "timestamp": "sentiment_error"
+        })
+        
+        return {
+            "tool_response": error_msg,
+            "current_agent": "sentiment_agent",
+            "messages": messages,
+            "executed_agents": executed_agents
+        }
 
 # Test local
 def test_sentiment_agent(query="Esto es una mierda, no pienso usar mas esta app."):

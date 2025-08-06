@@ -24,6 +24,7 @@ class State(TypedDict):
     current_agent: str
     supervisor_decision: str
     messages: List[dict]  # Array con historial de mensajes
+    executed_agents: List[str]  # Array con historial de agentes ejecutados
 
 # Nodo supervisor que evalúa la respuesta del agente y decide el siguiente paso
 from backend.supervisor.agent_supervisor import classify_with_gemini, supervise_agent_response
@@ -40,6 +41,7 @@ def supervisor_node(state):
     current_agent = state.get("current_agent", "")
     agent_response = state.get("tool_response", "")
     messages = state.get("messages", [])
+    executed_agents = state.get("executed_agents", [])
     
     # Si es la primera vez (no hay current_agent), clasificar el input inicial
     if not current_agent:
@@ -55,7 +57,8 @@ def supervisor_node(state):
         
         return {
             "next_agent": agent,
-            "messages": messages
+            "messages": messages,
+            "executed_agents": executed_agents
         }
     else:
         # Agregar respuesta del agente al historial
@@ -66,13 +69,18 @@ def supervisor_node(state):
             "timestamp": "after_agent"
         })
         
+        # Agregar el agente actual al historial de agentes ejecutados
+        if current_agent not in executed_agents:
+            executed_agents.append(current_agent)
+        
         # El supervisor evalúa la respuesta y decide el siguiente paso
-        decision = supervise_agent_response(user_input, current_agent, agent_response, messages)
+        decision = supervise_agent_response(user_input, current_agent, agent_response, messages, executed_agents)
         
         return {
             "supervisor_decision": decision,
             "next_agent": decision if decision != "guardrail" else "",
-            "messages": messages
+            "messages": messages,
+            "executed_agents": executed_agents
         }
 
 # Nodos para logeo de mensajes
@@ -101,34 +109,15 @@ def finalize_output(state):
 
 # Importar los agentes
 from backend.agents.rag_agent import rag_agent_node
-#from backend.agents.sentiment_agent import sentiment_agent_node
-#from backend.agents.email_agent import email_agent_node
-#from backend.agents.tech_agent import tech_agent_node
+from backend.agents.sentiment_agent import sentiment_agent_node
+from backend.agents.email_agent import email_agent_node
+from backend.agents.tech_agent import tech_agent_node
 
 # Construcción del grafo
 builder = StateGraph(State)
 
-def agent_prueba(state):
-    """
-    Agente de prueba que simplemente devuelve el input del usuario.
-    """
-    agent_name = state.get("next_agent")
-    messages = state.get("messages", [])
-    
-    # Agregar mensaje del agente al historial
-    response = f"YA SE REALIZARON LAS TAREAS DEL AGENTE {agent_name}"
-    messages.append({
-        "role": "agent",
-        "agent": agent_name,
-        "content": response,
-        "timestamp": "agent_response"
-    })
-    
-    return {
-        "tool_response": response,
-        "current_agent": agent_name,
-        "messages": messages
-    }
+# Los agentes ya están implementados con sus funciones reales
+# No necesitamos agent_prueba ya que cada agente tiene su propia función
 
 def guardrail_node(state: dict) -> dict:
     final_output = state.get("tool_response")
@@ -152,9 +141,9 @@ def guardrail_node(state: dict) -> dict:
 builder.add_node("guardrail", guardrail_node)
 builder.add_node("supervisor", supervisor_node)
 builder.add_node("rag_agent", rag_agent_node)
-builder.add_node("sentiment_agent", agent_prueba)
-builder.add_node("email_agent", agent_prueba)
-builder.add_node("tech_agent", agent_prueba)
+builder.add_node("sentiment_agent", sentiment_agent_node)
+builder.add_node("email_agent", email_agent_node)
+builder.add_node("tech_agent", tech_agent_node)
 builder.add_node("finalize", finalize_output)
 
 # Flujo del grafo - EL SUPERVISOR ES EL PUNTO DE ENTRADA

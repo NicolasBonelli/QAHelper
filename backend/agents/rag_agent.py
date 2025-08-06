@@ -134,11 +134,13 @@ def rag_agent_node(state):
         user_input = state.get("input", "")
         session_id = state.get("session_id")  # asumimos que viene del front
         messages = state.get("messages", [])
+        executed_agents = state.get("executed_agents", [])
 
         if not user_input:
             return {"tool_response": "Error: No se recibió input del usuario."}
 
         print(f"[RAG Agent] Procesando: {user_input}")
+        print(f"[RAG Agent] Agentes ejecutados previamente: {executed_agents}")
 
         # Paso 1: Obtener herramientas
         tools = asyncio.run(get_available_tools())
@@ -187,7 +189,8 @@ def rag_agent_node(state):
         return {
             "tool_response": final_response,
             "current_agent": "rag_agent",
-            "messages": messages
+            "messages": messages,
+            "executed_agents": executed_agents
         }
 
     except Exception as e:
@@ -206,7 +209,8 @@ def rag_agent_node(state):
         return {
             "tool_response": error_msg,
             "current_agent": "rag_agent",
-            "messages": messages
+            "messages": messages,
+            "executed_agents": executed_agents
         }
 
 # Función de utilidad para testing
