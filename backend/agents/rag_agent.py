@@ -133,6 +133,7 @@ def rag_agent_node(state):
     try:
         user_input = state.get("input", "")
         session_id = state.get("session_id")  # asumimos que viene del front
+        messages = state.get("messages", [])
 
         if not user_input:
             return {"tool_response": "Error: No se recibió input del usuario."}
@@ -175,12 +176,38 @@ def rag_agent_node(state):
         else:
             final_response = final_output
 
-        return {"tool_response": final_response}
+        # Agregar respuesta al historial de mensajes
+        messages.append({
+            "role": "agent",
+            "agent": "rag_agent",
+            "content": final_response,
+            "timestamp": "rag_response"
+        })
+
+        return {
+            "tool_response": final_response,
+            "current_agent": "rag_agent",
+            "messages": messages
+        }
 
     except Exception as e:
         error_msg = f"Error en rag_agent_node: {str(e)}"
         print(f"[RAG Agent ERROR] {error_msg}")
-        return {"tool_response": error_msg}
+        
+        # Agregar error al historial
+        messages = state.get("messages", [])
+        messages.append({
+            "role": "agent",
+            "agent": "rag_agent",
+            "content": error_msg,
+            "timestamp": "rag_error"
+        })
+        
+        return {
+            "tool_response": error_msg,
+            "current_agent": "rag_agent",
+            "messages": messages
+        }
 
 # Función de utilidad para testing
 def test_rag_agent(query: str = "¿Cuál es el horario de atención?"):
