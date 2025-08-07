@@ -1,15 +1,20 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
+from langchain_core.prompts import ChatPromptTemplate
 import os
 import asyncio
 import nest_asyncio
 from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+import psycopg
+from backend.config import DB_URL
+from langchain.memory import ConversationBufferMemory
+from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
 
 nest_asyncio.apply()
-load_dotenv()
+load_dotenv(override=True)
 
 MCP_SERVER_URL = os.getenv("MCP_RAG_SERVER_URL")
 MODEL = os.getenv("MODEL")
@@ -33,9 +38,32 @@ Action: warn_or_ban_user
 NO escribas nada más.
 
 Mensaje del usuario:
-{user_input}
-"""
+{user_input}"""
 
+# Prompt para ejecutar herramienta de sentimiento
+EXECUTE_SENTIMENT_PROMPT = """Eres un asistente especializado en moderación de contenido y manejo de sentimientos de usuarios.
+
+ENTRADA:
+- Input del usuario: {user_input}
+- Resultado de la herramienta de moderación: {tool_result}
+
+TAREA:
+Generar una respuesta apropiada basada en el análisis de sentimiento y la herramienta seleccionada.
+
+REGLAS:
+• Si se usó calm_down_user: Responde con empatía y calma, ofreciendo ayuda
+• Si se usó warn_or_ban_user: Responde de manera firme pero profesional, explicando las consecuencias
+• Mantén un tono profesional y constructivo
+• No uses tildes en español, escribe todo sin acentos
+• Estructura la respuesta de forma clara y organizada
+• Si es necesario, ofrece alternativas o soluciones
+
+CASOS ESPECIALES:
+- Si el usuario está frustrado: Ofrece ayuda específica
+- Si el usuario usa lenguaje inapropiado: Explica las políticas de la plataforma
+- Si es un malentendido: Aclara la situacion de manera amigable
+
+Genera una respuesta natural y apropiada:"""
 
 # Obtener lista de herramientas disponibles desde MCP
 async def get_available_tools():
@@ -62,15 +90,33 @@ async def execute_tool(tool_name: str, arguments: dict):
         return f"Error al ejecutar {tool_name}: {str(e)}"
 
 # Chain para decidir qué tool usar
-def get_tool_selection_chain():
+def get_tool_selection_chain(llm):
     prompt = PromptTemplate.from_template(SELECT_TOOL_PROMPT)
-    return prompt | llm
+    return LLMChain(llm=llm, prompt=prompt)
 
-# Nodo principal para LangGraph o uso directo
+def get_chat_memory(session_id: str):
+    """Devuelve la memoria basada en historial en PostgreSQL"""
+    
+    # Convertir la URL de SQLAlchemy a formato psycopg
+    psycopg_url = DB_URL.replace("postgresql+psycopg2://", "postgresql://")
+    
+    # Establecer conexión sincrónica
+    sync_connection = psycopg.connect(psycopg_url)
+    
+    # Crear las tablas si no existen (solo necesario una vez)
+    table_name = "chat_messages"
+
+    history = SQLAlchemyChatMessageHistory(session_id=session_id)
+    return ConversationBufferMemory(
+        chat_memory=history,
+        return_messages=True
+    )
+
+# Nodo principal para LangGraph
 def sentiment_agent_node(state):
     try:
-        print("EEEEEEEEEEEEEEEEEntre a sentiment agent")
         user_input = state.get("input", "")
+        session_id = state.get("session_id")  # asumimos que viene del front
         messages = state.get("messages", [])
         executed_agents = state.get("executed_agents", [])
         
@@ -80,47 +126,58 @@ def sentiment_agent_node(state):
         print(f"[Sentiment Agent] Procesando: {user_input}")
         print(f"[Sentiment Agent] Agentes ejecutados previamente: {executed_agents}")
 
+        # Paso 1: Obtener herramientas
         tools = asyncio.run(get_available_tools())
         tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
-        selector = get_tool_selection_chain()
-        decision_raw = selector.invoke({"tools": tools_str, "user_input": user_input})
-        decision = decision_raw.content.strip()
-
-        print(f"[Sentiment Agent] Respuesta del selector: {decision}")
-
-        # Extraer nombre de herramienta del output
-        tool_name = None
-        for line in decision.splitlines():
-            if "Action:" in line:
-                tool_name = line.split("Action:")[1].strip()
-                break
-
-        if not tool_name:
-            return {"tool_response": "Error: no se pudo determinar la herramienta a usar."}
+        
+        # Paso 2: Usar LLMChain para decidir qué tool usar
+        tool_selector = get_tool_selection_chain(llm)
+        tool_decision = tool_selector.run(tools=tools_str, user_input=user_input).strip()
+        tool_name_raw = tool_decision.strip()
+        tool_name = tool_name_raw.replace("Action:", "").strip()
         
         print(f"[Sentiment Agent] Tool seleccionada: {tool_name}")
 
-        result = asyncio.run(execute_tool(tool_name, {"text": user_input}))
-        print(f"[Sentiment Agent] Resultado: {result}")
+        # Paso 3: Ejecutar herramienta seleccionada
+        tool_result = asyncio.run(execute_tool(tool_name, {"text": user_input}))
+        print(f"[Sentiment Agent] Resultado de tool: {tool_result}")
+
+        # Paso 4: Usar memoria de conversación y LLM para generar respuesta final
+        memory = get_chat_memory(session_id)
+
+        agent_prompt = ChatPromptTemplate.from_messages([
+            ("system", EXECUTE_SENTIMENT_PROMPT),
+            ("user", "{input_block}")
+        ])
+        input_block = f"Input del usuario: {user_input}\n\nResultado de la herramienta: {tool_result}"
+
+        reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt, memory=memory)
+        final_output = reasoning_chain.invoke({"input_block": input_block})
+
+        # Robusto: si es string (primera vez), lo usamos directo; si es dict, sacamos solo el texto generado
+        if isinstance(final_output, dict):
+            final_response = final_output.get("text", str(final_output))
+        else:
+            final_response = final_output
         
         # Agregar respuesta al historial de mensajes
         messages.append({
             "role": "agent",
             "agent": "sentiment_agent",
-            "content": result,
+            "content": final_response,
             "timestamp": "sentiment_response"
         })
         
         return {
-            "tool_response": result,
+            "tool_response": final_response,
             "current_agent": "sentiment_agent",
             "messages": messages,
             "executed_agents": executed_agents
         }
 
     except Exception as e:
-        print(f"Error en sentiment_agent_node: {e}")
-        error_msg = f"Error: {str(e)}"
+        error_msg = f"Error en sentiment_agent_node: {str(e)}"
+        print(f"[Sentiment Agent ERROR] {error_msg}")
         
         # Agregar error al historial
         messages = state.get("messages", [])
@@ -141,7 +198,7 @@ def sentiment_agent_node(state):
 # Test local
 def test_sentiment_agent(query="Esto es una mierda, no pienso usar mas esta app."):
     print(f"Test: {query}")
-    test_state = {"input": query}
+    test_state = {"input": query, "session_id": "test-session-123"}
     result = sentiment_agent_node(test_state)
     print(result)
     return result

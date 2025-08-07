@@ -1,15 +1,20 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
+from langchain_core.prompts import ChatPromptTemplate
 import os
 import asyncio
 import nest_asyncio
 from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+import psycopg
+from backend.config import DB_URL
+from langchain.memory import ConversationBufferMemory
+from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
 
 nest_asyncio.apply()
-load_dotenv()
+load_dotenv(override=True)
 
 # Fix: Use the correct MCP server URL for tech server
 MCP_SERVER_URL = os.getenv("MCP_TECH_SERVER_URL", "http://localhost:8060")
@@ -32,8 +37,32 @@ Action: summarize_text
 NO escribas nada más.
 
 Mensaje del usuario:
-{user_input}
-"""
+{user_input}"""
+
+# Prompt para ejecutar herramienta técnica
+EXECUTE_TECH_PROMPT = """Eres un asistente especializado en herramientas técnicas y procesamiento de datos.
+
+ENTRADA:
+- Input del usuario: {user_input}
+- Resultado de la herramienta técnica: {tool_result}
+
+TAREA:
+Generar una respuesta útil basada en la herramienta seleccionada y el resultado obtenido.
+
+REGLAS:
+• Si se usó generate_excel_from_data: Explica el archivo generado y cómo acceder a él
+• Si se usó summarize_text: Presenta el resumen de manera clara y estructurada
+• Mantén un tono técnico pero accesible
+• No uses tildes en español, escribe todo sin acentos
+• Estructura la respuesta de forma clara y organizada
+• Si es necesario, ofrece instrucciones adicionales o sugerencias
+
+CASOS ESPECIALES:
+- Si se generó un archivo Excel: Explica dónde encontrarlo y cómo usarlo
+- Si el resumen es muy técnico: Simplifica la explicación
+- Si hay errores en el procesamiento: Ofrece alternativas o soluciones
+
+Genera una respuesta natural y útil:"""
 
 # Obtener lista de herramientas disponibles desde MCP
 async def get_available_tools():
@@ -68,14 +97,33 @@ async def execute_tool(tool_name: str, arguments: dict):
         return f"Error al ejecutar {tool_name}: {str(e)}"
 
 # Chain para decidir qué tool usar
-def get_tool_selection_chain():
+def get_tool_selection_chain(llm):
     prompt = PromptTemplate.from_template(SELECT_TOOL_PROMPT)
-    return prompt | llm
+    return LLMChain(llm=llm, prompt=prompt)
+
+def get_chat_memory(session_id: str):
+    """Devuelve la memoria basada en historial en PostgreSQL"""
+    
+    # Convertir la URL de SQLAlchemy a formato psycopg
+    psycopg_url = DB_URL.replace("postgresql+psycopg2://", "postgresql://")
+    
+    # Establecer conexión sincrónica
+    sync_connection = psycopg.connect(psycopg_url)
+    
+    # Crear las tablas si no existen (solo necesario una vez)
+    table_name = "chat_messages"
+
+    history = SQLAlchemyChatMessageHistory(session_id=session_id)
+    return ConversationBufferMemory(
+        chat_memory=history,
+        return_messages=True
+    )
 
 # Nodo principal
 def tech_agent_node(state):
     try:
         user_input = state.get("input", "")
+        session_id = state.get("session_id")  # asumimos que viene del front
         messages = state.get("messages", [])
         executed_agents = state.get("executed_agents", [])
         
@@ -85,69 +133,59 @@ def tech_agent_node(state):
         print(f"[Tech Agent] Procesando: {user_input}")
         print(f"[Tech Agent] Agentes ejecutados previamente: {executed_agents}")
 
-        # Use asyncio.run() only if not already in an async context
-        try:
-            loop = asyncio.get_running_loop()
-            # If we're in an async context, create a new task
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                tools = executor.submit(asyncio.run, get_available_tools()).result()
-        except RuntimeError:
-            # No running loop, safe to use asyncio.run()
-            tools = asyncio.run(get_available_tools())
-
+        # Paso 1: Obtener herramientas
+        tools = asyncio.run(get_available_tools())
         tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
-        selector = get_tool_selection_chain()
-        decision_raw = selector.invoke({"tools": tools_str, "user_input": user_input})
-        decision = decision_raw.content.strip()
-
-        print(f"[Tech Agent] Respuesta del selector: {decision}")
-
-        # Extraer nombre de herramienta del output
-        tool_name = None
-        for line in decision.splitlines():
-            if "Action:" in line:
-                tool_name = line.split("Action:")[1].strip()
-                break
-
-        if not tool_name:
-            return {"tool_response": "Error: no se pudo determinar la herramienta a usar."}
+        
+        # Paso 2: Usar LLMChain para decidir qué tool usar
+        tool_selector = get_tool_selection_chain(llm)
+        tool_decision = tool_selector.run(tools=tools_str, user_input=user_input).strip()
+        tool_name_raw = tool_decision.strip()
+        tool_name = tool_name_raw.replace("Action:", "").strip()
         
         print(f"[Tech Agent] Tool seleccionada: {tool_name}")
 
+        # Paso 3: Ejecutar herramienta seleccionada
         argument_key = "tabla" if tool_name == "generate_excel_from_data" else "text"
-        
-        # Use asyncio.run() only if not already in an async context
-        try:
-            loop = asyncio.get_running_loop()
-            # If we're in an async context, create a new task
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                result = executor.submit(asyncio.run, execute_tool(tool_name, {argument_key: user_input})).result()
-        except RuntimeError:
-            # No running loop, safe to use asyncio.run()
-            result = asyncio.run(execute_tool(tool_name, {argument_key: user_input}))
+        tool_result = asyncio.run(execute_tool(tool_name, {argument_key: user_input}))
+        print(f"[Tech Agent] Resultado de tool: {tool_result}")
 
-        print(f"[Tech Agent] Resultado: {result}")
+        # Paso 4: Usar memoria de conversación y LLM para generar respuesta final
+        memory = get_chat_memory(session_id)
+
+        agent_prompt = ChatPromptTemplate.from_messages([
+            ("system", EXECUTE_TECH_PROMPT),
+            ("user", "{input_block}")
+        ])
+        input_block = f"Input del usuario: {user_input}\n\nResultado de la herramienta: {tool_result}"
+
+        reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt, memory=memory)
+        final_output = reasoning_chain.invoke({"input_block": input_block})
+
+        # Robusto: si es string (primera vez), lo usamos directo; si es dict, sacamos solo el texto generado
+        if isinstance(final_output, dict):
+            final_response = final_output.get("text", str(final_output))
+        else:
+            final_response = final_output
         
         # Agregar respuesta al historial de mensajes
         messages.append({
             "role": "agent",
             "agent": "tech_agent",
-            "content": result,
+            "content": final_response,
             "timestamp": "tech_response"
         })
         
         return {
-            "tool_response": result,
+            "tool_response": final_response,
             "current_agent": "tech_agent",
             "messages": messages,
             "executed_agents": executed_agents
         }
 
     except Exception as e:
-        print(f"Error en tech_agent_node: {e}")
-        error_msg = f"Error: {str(e)}"
+        error_msg = f"Error en tech_agent_node: {str(e)}"
+        print(f"[Tech Agent ERROR] {error_msg}")
         
         # Agregar error al historial
         messages = state.get("messages", [])
@@ -168,7 +206,7 @@ def tech_agent_node(state):
 # Test local
 def test_tech_agent(query="nombre,edad,ciudad\nJuan,32,Cordoba\nAna,28,Rosario"):
     print(f"Test: {query}")
-    test_state = {"input": query}
+    test_state = {"input": query, "session_id": "test-session-123"}
     result = tech_agent_node(test_state)
     print(result)
     return result
