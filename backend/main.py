@@ -1,21 +1,25 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from utils.s3_utils import upload_text_to_s3
-#from utils.db_connection import Base, engine
 import os
 from dotenv import load_dotenv
-import uuid
-from pydantic import BaseModel
-from tasks import process_s3_file
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 from utils.db_connection import Base, engine
 from models.db import DocumentEmbedding
-from supervisor.graph_builder import app as graph_app  # El grafo ya compilado
 
+# Importar routers
+from api.s3_routes import router as s3_router
+from api.chat_routes import router as chat_router
+from api.files_routes import router as files_router
 
+from api.config import (
+    API_TITLE, API_DESCRIPTION, API_VERSION,
+    CORS_ORIGINS, CORS_ALLOW_CREDENTIALS, CORS_ALLOW_METHODS, CORS_ALLOW_HEADERS,
+    HOST, PORT
+)
 
-# Habilitar la extensión pgvector
+# Configuración de la base de datos
 print("🛠️ Habilitando extensión vector en la base...")
 with engine.connect() as connection:
     connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
@@ -25,26 +29,68 @@ print("✅ Extensión vector habilitada.")
 # Crear las tablas en la base si no existen
 print("🛠️ Creando tablas en la base...")
 Base.metadata.create_all(bind=engine)
-
 print("✅ Tablas creadas con éxito.")
-# Cargar variables del archivo .env
-load_dotenv()
 
-BUCKET_NAME = os.getenv("BUCKET_NAME")
+# Crear aplicación FastAPI
+app = FastAPI(
+    title=API_TITLE,
+    description=API_DESCRIPTION,
+    version=API_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-app = FastAPI()
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=CORS_ALLOW_CREDENTIALS,
+    allow_methods=CORS_ALLOW_METHODS,
+    allow_headers=CORS_ALLOW_HEADERS,
+)
 
+# Incluir routers
+app.include_router(s3_router)
+app.include_router(chat_router)
+app.include_router(files_router)
 
-class TaskInput(BaseModel):
-    bucket: str
-    key: str
+@app.get("/")
+async def root():
+    """
+    Endpoint raíz de la API
+    """
+    return {
+        "message": "QAHelper API - Sistema de soporte inteligente",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
-@app.post("/chat")
-def chat_endpoint(state: dict):
-    result = graph_app.invoke(state)
-    return result
+@app.get("/health")
+async def health_check():
+    """
+    Endpoint de verificación de salud general del sistema
+    """
+    return {
+        "status": "healthy",
+        "service": "QAHelper API",
+        "database": "connected",
+    }
 
-@app.post("/process-s3")
-async def trigger_process_s3_file(data: TaskInput):
-    process_s3_file.delay(data.bucket, data.key)
-    return {"status": "ok", "message": "Tarea enviada"}
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """
+    Manejador global de excepciones
+    """
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "detail": str(exc),
+            "type": type(exc).__name__
+        }
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host=HOST, port=PORT)
