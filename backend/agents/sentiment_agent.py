@@ -9,14 +9,17 @@ from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 import psycopg
-from backend.config import DB_URL
+from backend.config import DB_URL_LOCAL
 from langchain.memory import ConversationBufferMemory
 from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
+from backend.models.db import ChatSession
+from backend.utils.db_connection import SessionLocal
+from uuid import uuid4
 
 nest_asyncio.apply()
 load_dotenv(override=True)
 
-MCP_SERVER_URL = os.getenv("MCP_RAG_SERVER_URL")
+MCP_SERVER_URL = os.getenv("MCP_SENTIMENT_SERVER_URL")
 MODEL = os.getenv("MODEL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -44,8 +47,7 @@ Mensaje del usuario:
 EXECUTE_SENTIMENT_PROMPT = """Eres un asistente especializado en moderación de contenido y manejo de sentimientos de usuarios.
 
 ENTRADA:
-- Input del usuario: {user_input}
-- Resultado de la herramienta de moderación: {tool_result}
+-Input del usuario junto con la informacion recuperada {input_block}
 
 TAREA:
 Generar una respuesta apropiada basada en el análisis de sentimiento y la herramienta seleccionada.
@@ -96,21 +98,39 @@ def get_tool_selection_chain(llm):
 
 def get_chat_memory(session_id: str):
     """Devuelve la memoria basada en historial en PostgreSQL"""
-    
-    # Convertir la URL de SQLAlchemy a formato psycopg
-    psycopg_url = DB_URL.replace("postgresql+psycopg2://", "postgresql://")
-    
-    # Establecer conexión sincrónica
-    sync_connection = psycopg.connect(psycopg_url)
-    
-    # Crear las tablas si no existen (solo necesario una vez)
-    table_name = "chat_messages"
+    try:
+        # Usar directamente DB_URL_LOCAL que ya está en formato SQLAlchemy
+        # No necesitamos convertir a psycopg ya que SQLAlchemyChatMessageHistory usa SQLAlchemy
+        history = SQLAlchemyChatMessageHistory(session_id=session_id)
+        return ConversationBufferMemory(
+            chat_memory=history,
+            return_messages=True
+        )
+    except Exception as e:
+        print(f"[Sentiment Agent] Error en get_chat_memory: {e}")
+        # Fallback: retornar memoria sin persistencia
+        return ConversationBufferMemory(return_messages=True)
 
-    history = SQLAlchemyChatMessageHistory(session_id=session_id)
-    return ConversationBufferMemory(
-        chat_memory=history,
-        return_messages=True
-    )
+def insert_chat_session(session_id: str):
+    """Inserta una nueva sesión en la tabla chat_sessions"""
+    try:
+        db = SessionLocal()
+        # Verificar si la sesión ya existe
+        existing_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        
+        if not existing_session:
+            new_session = ChatSession(id=session_id)
+            db.add(new_session)
+            db.commit()
+            print(f"[Sentiment Agent] Nueva sesión creada: {session_id}")
+        else:
+            print(f"[Sentiment Agent] Sesión ya existe: {session_id}")
+        
+        db.close()
+    except Exception as e:
+        print(f"[Sentiment Agent] Error insertando sesión: {e}")
+        if db:
+            db.close()
 
 # Nodo principal para LangGraph
 def sentiment_agent_node(state):
@@ -127,20 +147,37 @@ def sentiment_agent_node(state):
         print(f"[Sentiment Agent] Agentes ejecutados previamente: {executed_agents}")
 
         # Paso 1: Obtener herramientas
-        tools = asyncio.run(get_available_tools())
-        tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
-        
-        # Paso 2: Usar LLMChain para decidir qué tool usar
-        tool_selector = get_tool_selection_chain(llm)
-        tool_decision = tool_selector.run(tools=tools_str, user_input=user_input).strip()
-        tool_name_raw = tool_decision.strip()
-        tool_name = tool_name_raw.replace("Action:", "").strip()
-        
-        print(f"[Sentiment Agent] Tool seleccionada: {tool_name}")
+        try:
+            tools = asyncio.run(get_available_tools())
+            if not tools:
+                # Fallback si no se pueden obtener herramientas
+                print("[Sentiment Agent] No se pudieron obtener herramientas, usando análisis local")
+                # Análisis simple local basado en palabras clave
+                offensive_words = ["mierda", "pelotudo", "imbecil", "inutiles", "asco", "horrible", "hdp", "estafa"]
+                has_offensive = any(word in user_input.lower() for word in offensive_words)
+                tool_name = "warn_or_ban_user" if has_offensive else "calm_down_user"
+                tool_result = "Análisis local realizado - " + ("Lenguaje inapropiado detectado" if has_offensive else "Frustración detectada")
+            else:
+                tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
+                
+                # Paso 2: Usar LLMChain para decidir qué tool usar
+                tool_selector = get_tool_selection_chain(llm)
+                tool_decision = tool_selector.run(tools=tools_str, user_input=user_input).strip()
+                tool_name_raw = tool_decision.strip()
+                tool_name = tool_name_raw.replace("Action:", "").strip()
+                
+                print(f"[Sentiment Agent] Tool seleccionada: {tool_name}")
 
-        # Paso 3: Ejecutar herramienta seleccionada
-        tool_result = asyncio.run(execute_tool(tool_name, {"text": user_input}))
-        print(f"[Sentiment Agent] Resultado de tool: {tool_result}")
+                # Paso 3: Ejecutar herramienta seleccionada
+                tool_result = asyncio.run(execute_tool(tool_name, {"text": user_input}))
+                print(f"[Sentiment Agent] Resultado de tool: {tool_result}")
+        except Exception as e:
+            print(f"[Sentiment Agent] Error obteniendo/ejecutando herramientas: {e}")
+            # Fallback con análisis simple
+            offensive_words = ["mierda", "pelotudo", "imbecil", "inutiles", "asco", "horrible", "hdp", "estafa"]
+            has_offensive = any(word in user_input.lower() for word in offensive_words)
+            tool_name = "warn_or_ban_user" if has_offensive else "calm_down_user"
+            tool_result = "Análisis local realizado - " + ("Lenguaje inapropiado detectado" if has_offensive else "Frustración detectada")
 
         # Paso 4: Usar memoria de conversación y LLM para generar respuesta final
         memory = get_chat_memory(session_id)
@@ -152,8 +189,8 @@ def sentiment_agent_node(state):
         input_block = f"Input del usuario: {user_input}\n\nResultado de la herramienta: {tool_result}"
 
         reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt, memory=memory)
+        # CORRECCIÓN: usar invoke() y extraer 'text'
         final_output = reasoning_chain.invoke({"input_block": input_block})
-
         # Robusto: si es string (primera vez), lo usamos directo; si es dict, sacamos solo el texto generado
         if isinstance(final_output, dict):
             final_response = final_output.get("text", str(final_output))
@@ -197,13 +234,25 @@ def sentiment_agent_node(state):
 
 # Test local
 def test_sentiment_agent(query="Esto es una mierda, no pienso usar mas esta app."):
-    print(f"Test: {query}")
-    test_state = {"input": query, "session_id": "test-session-123"}
+    """Función para probar el agente Sentiment independientemente"""
+    print(f"Testing Sentiment Agent with query: {query}")
+    
+    # UUID específico para la sesión
+    session_id = "39105cb8-ba8c-40c6-aaf7-dd8571b605e0"
+    
+    # Insertar sesión en la base de datos
+    insert_chat_session(session_id)
+    
+    # Simular estado como en LangGraph
+    test_state = {"input": query, "session_id": session_id}
+    
     result = sentiment_agent_node(test_state)
-    print(result)
+    
+    print(f"Result: {result}")
     return result
 
 if __name__ == "__main__":
+    # Test del agente
     test_sentiment_agent("Esta app es lo peor que vi, un asco, nunca responden.")
-    test_sentiment_agent("Estoy un poco molesto con el tiempo de espera.")
-    test_sentiment_agent("Nunca me responden nada de lo que hago, esto está muy mal.")
+   # test_sentiment_agent("Estoy un poco molesto con el tiempo de espera.")
+  # test_sentiment_agent("Nunca me responden nada de lo que hago, esto está muy mal.")

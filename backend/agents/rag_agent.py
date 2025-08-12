@@ -111,20 +111,18 @@ def get_tool_selection_chain(llm):
 def get_chat_memory(session_id: str):
     """Devuelve la memoria basada en historial en PostgreSQL"""
     
-    # Convertir la URL de SQLAlchemy a formato psycopg
-    psycopg_url = DB_URL.replace("postgresql+psycopg2://", "postgresql://")
-    
-    # Establecer conexión sincrónica
-    sync_connection = psycopg.connect(psycopg_url)
-    
-    # Crear las tablas si no existen (solo necesario una vez)
-    table_name = "chat_messages"
-
-    history = SQLAlchemyChatMessageHistory(session_id=session_id)
-    return ConversationBufferMemory(
-        chat_memory=history,
-        return_messages=True
-    )
+    try:
+        # Usar directamente DB_URL_LOCAL que ya está en formato SQLAlchemy
+        # No necesitamos convertir a psycopg ya que SQLAlchemyChatMessageHistory usa SQLAlchemy
+        history = SQLAlchemyChatMessageHistory(session_id=session_id)
+        return ConversationBufferMemory(
+            chat_memory=history,
+            return_messages=True
+        )
+    except Exception as e:
+        print(f"[Rag Agent] Error en get_chat_memory: {e}")
+        # Fallback: retornar memoria sin persistencia
+        return ConversationBufferMemory(return_messages=True)
 
 
 

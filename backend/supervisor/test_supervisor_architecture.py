@@ -16,8 +16,7 @@ def test_sentiment_tech_flow():
     print("\n🧠 Test Específico: Sentimientos → Tech → Guardrail")
     print("=" * 60)
     
-    test_input = '''Esta app es lo peor que vi, un asco, nunca responden.
-    Pero, les voy a dar una ultima oportunidad, resumime esto: Este es un articulo largo sobre la importancia de la IA en la educación moderna. La IA permite personalizar el aprendizaje y mejorar los resultados educativos. Sin embargo, también plantea desafíos éticos que deben ser abordados...'''
+    test_input = '''¿Qué KPIs puede usar AIStart?'''
     
     
     initial_state = {
@@ -25,7 +24,7 @@ def test_sentiment_tech_flow():
         "next_agent": "",
         "tool_response": "",
         "final_output": "",
-        "session_id": "test_sentiment_tech",
+        "session_id": "39105cb8-ba8c-40c6-aaf7-dd8571b605e0",
         "current_agent": "",
         "supervisor_decision": "",
         "messages": []

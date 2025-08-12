@@ -1,5 +1,8 @@
 from backend.utils.db_connection import SessionLocal
 from ..models.db import DocumentEmbedding, ChatSession, ChatMessage
+from llama_index.core import VectorStoreIndex, Document
+from llama_index.core.schema import Node
+import numpy as np
 
 def save_chunks_to_db(nodes, doc_id: str):
     db = SessionLocal()
@@ -42,6 +45,50 @@ def save_message(session_id: str, role: str, message: str):
         print("[DB Logger Error]", e)
     finally:
         db.close()
+
+
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.core import Settings, StorageContext, load_index_from_storage, VectorStoreIndex
+from llama_index.vector_stores.postgres import PGVectorStore  # integración LlamaIndex
+# otras importaciones tuyas siguen igual...
+
+# 1) configurar el modelo de embeddings globalmente (Settings)
+embed_model = HuggingFaceEmbedding(model_name="intfloat/e5-base-v2")
+Settings.embed_model = embed_model
+
+# 2) crear el vector store (ajusta params a tu version/tabla)
+vector_store = PGVectorStore.from_params(
+    database="qahelper",
+    host="localhost",
+    user="postgres",
+    password="postgres",
+    port=5432,
+    table_name="document_embeddings",  # tu tabla
+    embed_dim=768,
+)
+from llama_index.core import Document
+from llama_index.core.schema import TextNode
+
+def load_chunks_into_vectorstore():
+    db = SessionLocal()
+    try:
+        chunks = db.query(DocumentEmbedding).all()
+        nodes = []
+        for chunk in chunks:
+            node = TextNode(text=chunk.text, id_=chunk.chunk_id, embedding=np.array(chunk.embedding))
+            nodes.append(node)
+        index = VectorStoreIndex(nodes, storage_context=StorageContext.from_defaults(vector_store=vector_store))
+        return index
+    finally:
+        db.close()
+
+        
+def create_index_from_pg():
+
+    index = load_chunks_into_vectorstore()
+    print("✅ Índice cargado desde storage_context")
+
+    return index
 
 if __name__ == "__main__":
     save_message("39105cb8-ba8c-40c6-aaf7-dd8571b605e0","ai","A ver")

@@ -14,21 +14,25 @@ AGENT_MAP = {
     "consulta_documento": "rag_agent",
     "analisis_sentimiento": "sentiment_agent",
     "generar_email": "email_agent",
-    "tarea_tecnica": "tech_agent"
+    "tarea_tecnica": "tech_agent",
+    "guardrail": "guardrail"
 }
+
 
 # Prompt estructurado para clasificación inicial
 initial_prompt = ChatPromptTemplate.from_messages([
     ("system", 
      "Sos un agente que debe clasificar mensajes de usuarios en una de las siguientes tareas basándote en las herramientas disponibles:\n\n"
+     "- guardrail: cuando el mensaje no coincide con ninguna de las categorías anteriores (por ejemplo: saludos, frases sin contexto, mensajes irrelevantes)\n\n"     
      "- consulta_documento: cuando el usuario quiere buscar información en documentos o hacer consultas sobre la empresa (herramientas: search_documents, faq_query)\n"
      "- analisis_sentimiento: cuando el usuario expresa enojo, frustración, insultos o necesita gestión emocional (herramientas: calm_down_user, warn_or_ban_user)\n"
      "- generar_email: cuando el usuario quiere redactar correos profesionales o resumir correos existentes (herramientas: draft_professional_email, summarize_email)\n"
-     "- tarea_tecnica: cuando el usuario quiere generar archivos Excel desde datos o resumir textos largos (herramientas: generate_excel_from_data, summarize_text)\n\n"
+     "- tarea_tecnica: cuando el usuario quiere generar archivos Excel desde datos o resumir textos largos (herramientas: generate_excel_from_data, summarize_text)\n"
      "REGLAS:\n"
      "1. Si el mensaje contiene enojo, agresión, insultos o frustración, devolvé **analisis_sentimiento**, aunque el mensaje también incluya otra necesidad.\n"
      "2. Si no hay señales de agresión, clasificá según la necesidad principal del usuario.\n"
-     "3. Respondé solo con uno de estos valores exactos (sin comillas): consulta_documento, analisis_sentimiento, generar_email, tarea_tecnica.\n\n"
+     "3. Si el mensaje no encaja con ninguna categoría ni herramienta, devolvé **guardrail**.\n"
+     "4. Respondé solo con uno de estos valores exactos (sin comillas): consulta_documento, analisis_sentimiento, generar_email, tarea_tecnica, guardrail.\n\n"
      "EJEMPLOS:\n"
      "- '¿Cuál es el horario?' → consulta_documento\n"
      "- 'Esta app es una mierda' → analisis_sentimiento\n"
@@ -36,8 +40,10 @@ initial_prompt = ChatPromptTemplate.from_messages([
      "- 'nombre,edad,ciudad' → tarea_tecnica\n"
      "- 'Resumime este texto, pero primero arreglen esta porquería' → analisis_sentimiento\n"
      "- 'Este servicio es lento, pero necesito un resumen de este texto' → analisis_sentimiento\n"
-     "- 'Hola, necesito ayuda con esto: nombre,edad,ciudad' → tarea_tecnica\n\n"
-     "Tu única salida debe ser uno de estos valores exactos: consulta_documento, analisis_sentimiento, generar_email, tarea_tecnica."),
+     "- 'Hola, necesito ayuda con esto: nombre,edad,ciudad' → tarea_tecnica\n"
+     "- 'Buen día' → guardrail\n"
+     "- 'Ok' → guardrail\n\n"
+     "Tu única salida debe ser uno de estos valores exactos: consulta_documento, analisis_sentimiento, generar_email, tarea_tecnica, guardrail."),
     ("human", "Mensaje del usuario: {user_input}")
 ])
 
@@ -90,7 +96,7 @@ def classify_with_gemini(user_input: str) -> str:
     """
     try:
         result = classification_chain.run(user_input=user_input).strip()
-        return AGENT_MAP.get(result, "rag_agent")
+        return AGENT_MAP.get(result)
     except Exception as e:
         print("[Error en classify_with_gemini]:", e)
         return "rag_agent"

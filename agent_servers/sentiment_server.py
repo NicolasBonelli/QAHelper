@@ -5,6 +5,7 @@ from fastapi import FastAPI
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
+from langsmith import traceable
 
 # Load environment variables
 load_dotenv(override=True)
@@ -14,7 +15,7 @@ mcp = FastMCP(
     name="sentiment_agent",
     instructions="Servidor MCP con herramientas de gestión emocional del usuario.",
     host="0.0.0.0",
-    port=8050
+    port=8080
 )
 
 # Modelo LLM with fallback values
@@ -41,6 +42,7 @@ else:
     )
 
 @mcp.tool
+@traceable(run_type="tool", name="calm_down_user")
 def calm_down_user(text: str) -> str:
     """Si el usuario está molesto pero no agresivo, responde de manera empática y calma. Argumentos: text:str"""
     prompt = f"""
@@ -57,6 +59,7 @@ def calm_down_user(text: str) -> str:
     return llm.invoke(prompt).content.strip()
 
 @mcp.tool
+@traceable(run_type="tool", name="warn_or_ban_user")
 def warn_or_ban_user(text: str) -> str:
     """Si el usuario insulta o está muy agresivo, muestra una advertencia de posible baneo. Argumentos: text:str"""
     prompt = f"""

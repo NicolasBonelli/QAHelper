@@ -2,6 +2,7 @@ from guardrails import Guard
 from backend.utils.db_actions import save_message
 import os
 from dotenv import load_dotenv
+from langsmith import traceable
 
 load_dotenv(override=True)
 
@@ -31,8 +32,11 @@ guard_config = """
 guard = Guard.for_rail_string(
     guard_config,
     name="moderation_guard"
+    
 )
 
+
+@traceable(name="guardrails_moderation", run_type="chain")
 def apply_guardrail_and_store(state: dict) -> dict:
     """
     Aplica validación con guardrails usando Groq API.

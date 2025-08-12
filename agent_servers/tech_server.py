@@ -8,6 +8,7 @@ import pandas as pd
 from io import StringIO
 from dotenv import load_dotenv
 import logging
+from langsmith import traceable
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -60,7 +61,9 @@ else:
                 return MockResponse()
         llm = MockLLM()
 
+
 @mcp.tool
+@traceable(run_type="tool", name="generate_excel_from_data")
 def generate_excel_from_data(tabla: str) -> str:
     """
     Recibe una tabla en formato CSV o tabulado como texto y genera un archivo Excel.
@@ -89,6 +92,7 @@ def generate_excel_from_data(tabla: str) -> str:
         return f"Error al generar Excel: {str(e)}"
 
 @mcp.tool
+@traceable(run_type="tool", name="summarize_text")
 def summarize_text(text: str) -> str:
     """
     Resume un texto largo en pocas oraciones. Ideal para contenido de blogs, artículos, etc.

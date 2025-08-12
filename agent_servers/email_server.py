@@ -5,6 +5,7 @@ from fastapi import FastAPI
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
+from langsmith import traceable
 
 load_dotenv(override=True)
 
@@ -22,8 +23,8 @@ llm = ChatGoogleGenerativeAI(
     temperature=0,
     google_api_key=os.getenv("GEMINI_API_KEY")
 )
-
 @mcp.tool
+@traceable(run_type="tool", name="draft_professional_email")
 def draft_professional_email(to: str, subject: str, body: str) -> str:
     """
     Redacta un correo profesional a partir de un mensaje básico. Argumentos: to:str, subject:str, body:str
@@ -40,6 +41,7 @@ def draft_professional_email(to: str, subject: str, body: str) -> str:
     return llm.invoke(prompt).content.strip()
 
 @mcp.tool
+@traceable(run_type="tool", name="summarize_email")
 def summarize_email(text: str) -> str:
     """
     Resume un correo largo o una cadena de correos. Argumentos: text:str
