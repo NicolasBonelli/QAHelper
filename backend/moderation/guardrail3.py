@@ -1,8 +1,8 @@
 import os
 from dotenv import load_dotenv
 from langsmith import traceable
+from guardrails.hub import ToxicLanguage
 from guardrails import Guard
-from pydantic import BaseModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 
@@ -13,36 +13,15 @@ load_dotenv(override=True)
 # ======================
 MODEL = os.getenv("MODEL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0.0, google_api_key=GEMINI_API_KEY)
 
 # ======================
-# Modelo Pydantic para validar la salida
+# Guard de toxicidad (del toxic_guardrail.py)
 # ======================
-class FinalResponse(BaseModel):
-    final_answer: str
-
-# Guard que validará contenido inapropiado
-guard = Guard.for_pydantic(
-    output_class=FinalResponse,
-    messages=[{
-        "role": "system",
-        "content": (
-            "Si el contenido es apropiado, devuelve solo el campo 'final_answer'. "
-            "Si es inapropiado (toxicidad, odio, sexualidad, privacidad, negarte a responder), "
-            "reescríbelo en español sin tildes, manteniendo tono profesional."
-        )
-    }],
-    reask_messages=[{
-        "role": "system",
-        "content": "Tu respuesta no pasó la validación. Por favor, corregila respetando las reglas anteriores."
-    }],
-    num_reasks=1,
-    name="final_response_guard"
-)
+toxic_guard = Guard().use(ToxicLanguage, threshold=0.5, validation_method="sentence", on_fail="exception")
 
 # ======================
-# Prompt de LangChain
+# Prompt de LangChain (del guardrail2.py)
 # ======================
 FINAL_RESPONSE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", 
@@ -69,6 +48,12 @@ FINAL_RESPONSE_PROMPT = ChatPromptTemplate.from_messages([
     ("human", "Necesidad original del usuario: {original_input}")
 ])
 
+# Prompt para traducción con advertencia
+TRANSLATION_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", "Traduce al español la siguiente respuesta en inglés, añadiendo una advertencia al inicio: '⚠️ ADVERTENCIA: La respuesta original contenía lenguaje inapropiado y ha sido filtrada.'"),
+    ("human", "Traduce: {english_response}")
+])
+
 def format_conversation_history(messages: list) -> str:
     if not messages:
         return "No hay historial de conversación disponible."
@@ -87,8 +72,8 @@ def format_conversation_history(messages: list) -> str:
             formatted_history.append(f"⚙️ {agent.upper() if agent else 'SISTEMA'}: {content}")
     return "\n".join(formatted_history)
 
-@traceable(name="guardrails_moderation", run_type="chain")
-def apply_guardrail_and_store(state: dict) -> dict:
+@traceable(name="toxic_guardrail_moderation", run_type="chain")
+def apply_toxic_guardrail_and_store(state: dict) -> dict:
     session_id = state.get("session_id")
     messages = state.get("messages", [])
     original_input = state.get("input", "")
@@ -110,23 +95,30 @@ def apply_guardrail_and_store(state: dict) -> dict:
     else:
         final_response = str(response_text)
 
-    # Paso 2: Validar con Guardrails (parse directo)
+    # Paso 2: Validar respuesta en inglés con toxic_guard
     try:
-        parsed = guard.parse(
-            final_response, 
-            num_reasks=1,
-            api_key=GROQ_API_KEY
-        )
-        final_validated_response = parsed.final_answer
+        # Extraer respuesta en inglés del JSON
+        import json
+        response_data = json.loads(final_response)
+        english_response = response_data.get("final_response_en", "")
+        spanish_response = response_data.get("final_response_es", "")
+        
+        # Validar inglés con toxic_guard
+        toxic_guard.validate(english_response)
+        final_validated_response = spanish_response  # Respuesta válida, usar español
+        
     except Exception as e:
-        print(f"⚠️ Error en validación Guardrails: {e}")
-        final_validated_response = final_response  # fallback
+        print(f"⚠️ Contenido tóxico detectado: {e}")
+        # Paso 3: Generar traducción con advertencia
+        translation_chain = TRANSLATION_PROMPT | llm
+        translated_response = translation_chain.invoke({"english_response": english_response})
+        final_validated_response = translated_response.text if hasattr(translated_response, 'text') else str(translated_response)
 
-    # Paso 3: Actualizar estado
+    # Paso 4: Actualizar estado
     updated_messages = messages.copy()
     updated_messages.append({
         "role": "system",
-        "agent": "guardrail",
+        "agent": "toxic_guardrail",
         "content": final_validated_response,
         "timestamp": "final_response"
     })
@@ -150,5 +142,5 @@ if __name__ == "__main__":
             {"role": "agent", "agent": "rag_agent", "content": "Empresa de tecnología fundada en 2020."}
         ]
     }
-    result = apply_guardrail_and_store(test_state)
+    result = apply_toxic_guardrail_and_store(test_state)
     print("Final Output:", result["final_output"])
