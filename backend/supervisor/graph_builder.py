@@ -118,24 +118,15 @@ builder = StateGraph(State)
 
 # Los agentes ya están implementados con sus funciones reales
 # No necesitamos agent_prueba ya que cada agente tiene su propia función
+from backend.moderation.guardrail import apply_guardrail_and_store
 
 def guardrail_node(state: dict) -> dict:
-    final_output = state.get("tool_response")
-    resultado = final_output + " + Resultado del guardrail"
+    """
+    Nodo guardrail que procesa todo el historial de mensajes,
+    genera una respuesta final coherente y la valida
+    """
     
-    messages = state.get("messages", [])
-    messages.append({
-        "role": "system",
-        "agent": "guardrail",
-        "content": resultado,
-        "timestamp": "final"
-    })
-    
-    return {
-        **state,
-        "final_output": resultado,
-        "messages": messages
-    }
+    return apply_guardrail_and_store(state)
 
 # Agregar nodos
 builder.add_node("guardrail", guardrail_node)
