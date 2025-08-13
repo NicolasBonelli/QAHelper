@@ -218,3 +218,4 @@ Para dudas o problemas:
 4. Consultar documentación de pgvector
 
 ¡El sistema RAG con PostgreSQL está listo para usar! 🎉
+

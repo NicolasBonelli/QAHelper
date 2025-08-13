@@ -27,13 +27,11 @@ llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0, google_api_key=GEMINI_A
 
 SELECT_TOOL_PROMPT = """Analiza el mensaje del usuario y selecciona una de estas herramientas:
 
-- draft_professional_email: si el usuario quiere redactar un correo profesional a partir de un mensaje o idea base.
-- summarize_email: si el usuario te da un correo largo o cadena de emails para resumir.
+- draft_and_send_email: si el usuario quiere redactar un correo profesional a partir de un mensaje o idea base y enviarlo.
 
 Responde con exactamente una línea:
 
-Action: draft_professional_email  
-Action: summarize_email
+Action: draft_and_send_email  
 
 NO escribas nada más.
 
@@ -50,17 +48,17 @@ TAREA:
 Generar una respuesta útil basada en la herramienta seleccionada y el resultado obtenido.
 
 REGLAS:
-• Si se usó draft_professional_email: Presenta el correo redactado de forma clara y profesional
-• Si se usó summarize_email: Presenta el resumen de manera estructurada y fácil de entender
+• Si se usó draft_and_send_email: Presenta el correo redactado de forma clara y profesional, menciona si fue enviado exitosamente
 • Mantén un tono profesional y útil
 • No uses tildes en español, escribe todo sin acentos
 • Estructura la respuesta de forma clara y organizada
 • Si es necesario, ofrece sugerencias adicionales o mejoras
+• Si hay errores de envío, explica claramente qué pasó
 
 CASOS ESPECIALES:
 - Si el correo necesita más detalles: Sugiere información adicional
-- Si el resumen es muy largo: Organiza en puntos clave
-- Si hay errores en el resultado: Ofrece una versión corregida
+- Si hay errores en el resultado: Ofrece una versión corregida o alternativas
+- Si el envío falló: Explica el error y posibles soluciones
 
 Genera una respuesta natural y útil:"""
 
@@ -146,8 +144,7 @@ def email_agent_node(state):
                 # Fallback si no se pueden obtener herramientas
                 print("[Email Agent] No se pudieron obtener herramientas, usando herramientas por defecto")
                 tools = [
-                    {"name": "draft_professional_email", "description": "Redacta correo profesional"},
-                    {"name": "summarize_email", "description": "Resume correos largos"}
+                    {"name": "draft_and_send_email", "description": "Redacta y envia correo profesional via SMTP"},
                 ]
             
             tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
@@ -160,12 +157,14 @@ def email_agent_node(state):
             
             print(f"[Email Agent] Tool seleccionada: {tool_name}")
 
-            # Paso 3: Ejecutar herramienta seleccionada
-            # Argumentos mínimos
-            if tool_name == "draft_professional_email":
+            # Paso 3: Ejecutar herramienta seleccionada con nuevos parámetros SMTP
+            # Argumentos actualizados para la función SMTP
+            if tool_name == "draft_and_send_email":
+                # Extraer información básica del mensaje del usuario
+                # Puedes hacer esto más sofisticado con regex o NLP
                 args = {
-                    "to": "soporte@empresa.com",  # o extraer de alguna UI
-                    "subject": "Consulta sobre el producto",
+                    "from_person": "usuario@ejemplo.com",  # Esto debería venir del contexto del usuario
+                    "subject": "Consulta profesional",     # Esto se puede extraer o generar
                     "body": user_input
                 }
             else:
@@ -177,11 +176,11 @@ def email_agent_node(state):
             print(f"[Email Agent] Error obteniendo/ejecutando herramientas: {e}")
             # Fallback con análisis simple
             if "correo" in user_input.lower() or "email" in user_input.lower() or "redactar" in user_input.lower():
-                tool_name = "draft_professional_email"
+                tool_name = "draft_and_send_email"
                 tool_result = "Análisis local realizado - Solicitud de redacción de correo detectada"
             else:
-                tool_name = "summarize_email"
-                tool_result = "Análisis local realizado - Solicitud de resumen detectada"
+                tool_name = "draft_and_send_email"
+                tool_result = "Análisis local realizado - Procesando solicitud de email"
 
         # Paso 4: Usar memoria de conversación y LLM para generar respuesta final
         memory = get_chat_memory(session_id)
@@ -233,13 +232,14 @@ def email_agent_node(state):
             "tool_response": error_msg,
             "current_agent": "email_agent",
             "messages": messages,
-            "executed_agents": executed_agents
+            "executed_agents": state.get("executed_agents", [])
         }
 
 # Test local
 def test_email_agent(query="Hola, quiero escribir un correo al soporte por un problema con la factura, pero no se como redactarlo bien."):
     """Función para probar el agente Email independientemente"""
     print(f"Testing Email Agent with query: {query}")
+    print("-" * 60)
     
     # UUID específico para la sesión
     session_id = "39105cb8-ba8c-40c6-aaf7-dd8571b605e0"
@@ -248,14 +248,72 @@ def test_email_agent(query="Hola, quiero escribir un correo al soporte por un pr
     insert_chat_session(session_id)
     
     # Simular estado como en LangGraph
-    test_state = {"input": query, "session_id": session_id}
+    test_state = {
+        "input": query, 
+        "session_id": session_id,
+        "messages": [],
+        "executed_agents": []
+    }
     
     result = email_agent_node(test_state)
     
-    print(f"Result: {result}")
+    print("\n" + "="*60)
+    print("RESULTADO DEL TEST:")
+    print("="*60)
+    print(f"Tool Response: {result.get('tool_response', 'No response')}")
+    print(f"Current Agent: {result.get('current_agent', 'Unknown')}")
+    print(f"Messages Count: {len(result.get('messages', []))}")
+    print(f"Executed Agents: {result.get('executed_agents', [])}")
+    
+    # Mostrar el último mensaje si existe
+    messages = result.get('messages', [])
+    if messages:
+        last_message = messages[-1]
+        print(f"\nUltimo mensaje del agente:")
+        print(f"Role: {last_message.get('role')}")
+        print(f"Agent: {last_message.get('agent')}")
+        print(f"Content: {last_message.get('content')}")
+    
     return result
 
+# Tests adicionales
+def test_multiple_scenarios():
+    """Prueba varios escenarios diferentes"""
+    scenarios = [
+        "Necesito redactar un email de queja por un producto defectuoso",
+        "Quiero enviar un correo formal solicitando información sobre precios",
+        "Ayudame a escribir un email de seguimiento para una reunión",
+        "Redacta un correo profesional para solicitar vacaciones"
+    ]
+    
+    print("\n" + "="*80)
+    print("TESTING MULTIPLE SCENARIOS")
+    print("="*80)
+    
+    for i, scenario in enumerate(scenarios, 1):
+        print(f"\n--- SCENARIO {i} ---")
+        print(f"Query: {scenario}")
+        
+        try:
+            result = test_email_agent(scenario)
+            status = "✅ SUCCESS" if result.get('tool_response') else "❌ FAILED"
+            print(f"Status: {status}")
+        except Exception as e:
+            print(f"Status: ❌ ERROR - {str(e)}")
+        
+        print("-" * 40)
+
 if __name__ == "__main__":
-    # Test del agente
-    test_email_agent("Este es un resumen de tres correos donde se discute el contrato. El primero fue enviado el lunes con detalles legales. El segundo contiene propuestas de fechas. El tercero, una confirmación.")
-    test_email_agent("Necesito mandar un correo al equipo de soporte diciendo que no puedo acceder a la plataforma desde ayer.")
+    # Test principal
+    print("INICIANDO TESTS DEL EMAIL AGENT")
+    print("="*80)
+    
+    # Test básico
+    test_email_agent("Quiero redactar un correo para reportar un bug en la aplicación")
+    
+    # Tests múltiples escenarios
+    test_multiple_scenarios()
+    
+    print("\n" + "="*80)
+    print("TESTS COMPLETADOS")
+    print("="*80)
