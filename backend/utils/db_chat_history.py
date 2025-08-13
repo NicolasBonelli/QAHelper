@@ -6,11 +6,15 @@ from backend.utils.db_connection import SessionLocal  # conexión a la DB (tuya)
 from uuid import UUID
 
 class SQLAlchemyChatMessageHistory(BaseChatMessageHistory):
-    def __init__(self, session_id: UUID):
+    def __init__(self, session_id: UUID, persist: bool = True):
         self.session_id = session_id
+        self.persist = persist
         self.db: Session = SessionLocal()
 
     def add_message(self, message):
+        """Agrega un mensaje al historial. Si persist=False, no guarda en DB."""
+        if not self.persist:
+            return  # Solo lo mantiene en memoria si usás ConversationBufferMemory
         role = message.type  # "human" o "ai"
         content = message.content
 
