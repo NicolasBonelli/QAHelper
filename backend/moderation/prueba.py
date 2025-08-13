@@ -1,9 +1,9 @@
 import os
-from groq import Groq
 from dotenv import load_dotenv
+from groq import Groq
 
 # Cargar variables de entorno desde el archivo .env
-load_dotenv()
+load_dotenv(override=True)
 
 def test_groq_api_key():
     # Obtener la clave de API desde la variable de entorno
