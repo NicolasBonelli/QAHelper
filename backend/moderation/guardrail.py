@@ -1,296 +1,173 @@
-#from backend.utils.db_actions import save_message
 import os
 from dotenv import load_dotenv
 from langsmith import traceable
+from guardrails.hub import ToxicLanguage
 from guardrails import Guard
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
-from langchain.chains import LLMChain
+#from backend.utils.db_actions import save_message
 
 load_dotenv(override=True)
 
-# Configuración del LLM para generar respuesta final
+# ======================
+# Configuración del LLM
+# ======================
 MODEL = os.getenv("MODEL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0.7, google_api_key=GEMINI_API_KEY)
+llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0.0, google_api_key=GEMINI_API_KEY)
 
-# Prompt para generar respuesta final coherente basada en el historial
+# ======================
+# Guard de toxicidad (del toxic_guardrail.py)
+# ======================
+toxic_guard = Guard().use(ToxicLanguage, threshold=0.9, validation_method="sentence", on_fail="exception")
+
+# ======================
+# Prompt de LangChain (del guardrail2.py)
+# ======================
 FINAL_RESPONSE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", 
-     "Eres un asistente experto que debe generar una respuesta final coherente y completa "
+     "Eres un asistente experto y amigable que debe generar una respuesta final natural y conversacional "
      "basándote en todo el historial de la conversación entre el usuario y los diferentes agentes.\n\n"
      "INSTRUCCIONES:\n"
      "1. Analiza todo el historial de mensajes para entender el contexto completo\n"
      "2. Identifica la necesidad original del usuario\n"
      "3. Revisa las respuestas de todos los agentes que han intervenido\n"
      "4. Genera una respuesta final que:\n"
-     "   - Sea coherente y completa\n"
-     "   - Combine toda la información relevante de los agentes\n"
-     "   - Responda directamente a la necesidad original del usuario\n"
-     "   - Mantenga un tono profesional y útil\n"
-     "   - No repita información innecesariamente\n"
+     "   - Sea natural y conversacional, como si la escribiera un humano\n"
+     "   - Combine toda la información relevante de manera fluida\n"
+     "   - Use un tono amigable y cercano\n"
+     "   - Evite lenguaje técnico o formal excesivo\n"
+     "   - Incluya transiciones naturales entre ideas\n"
      "   - Sea clara y fácil de entender\n\n"
-     "REGLAS:\n"
-     "- Si hay múltiples respuestas de agentes, sintetiza la información\n"
-     "- Si un agente ya dio una respuesta completa, úsala como base\n"
-     "- Si hay información contradictoria, prioriza la más reciente o relevante\n"
-     "- Mantén el contexto de la conversación\n"
-     "- No inventes información que no esté en el historial\n"
-     "- Responde en español sin tildes\n\n"
-     "HISTORIAL DE LA CONVERSACIÓN:\n{conversation_history}\n\n"
-     "GENERA UNA RESPUESTA FINAL COHERENTE:"),
+     "5. Traduce la respuesta al inglés manteniendo el mismo tono natural\n\n"
+     "Responde SOLO con un JSON válido que contenga:\n"
+     "{{\n"
+     "  \"final_response_es\": \"Respuesta final en español con tono natural y conversacional\",\n"
+     "  \"final_response_en\": \"Final response in English with natural and conversational tone\"\n"
+     "}}\n\n"
+     "HISTORIAL:\n{conversation_history}"),
     ("human", "Necesidad original del usuario: {original_input}")
 ])
 
-# Configuración del guardrail (validación de toxicidad)
-guard_config = """
-<rail version="0.1">
-  <output>
-    <string name="response" on-fail="fix" />
-  </output>
-  <prompt>
-    Eres un asistente útil que debe reescribir contenido inapropiado para que sea seguro y apropiado. Si el contenido es apropiado, devuelve el input original sin cambios. Los temas que debes proteger son:
-    toxicidad
-    profanidad
-    discurso de odio
-    contenido sexual
-    privacidad
-    negativa a responder
-    
-    IMPORTANTE: Si necesitas reescribir el contenido, hazlo en español sin tildes y mantén un tono profesional y útil.
-    
-    Input: {{input_text}}
-  </prompt>
-</rail>
-"""
-
-# Crear guard
-guard = Guard.for_rail_string(
-    guard_config,
-    name="moderation_guard"
-)
+# Prompt para traducción con advertencia
+TRANSLATION_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", "Traduce al español la siguiente respuesta en inglés, añadiendo una advertencia al inicio: '⚠️ ADVERTENCIA: La respuesta original contenía lenguaje inapropiado y ha sido filtrada.'"),
+    ("human", "Traduce: {english_response}")
+])
 
 def format_conversation_history(messages: list) -> str:
-    """
-    Formatea el historial de mensajes para el prompt de LangChain
-    """
     if not messages:
         return "No hay historial de conversación disponible."
     
     formatted_history = []
-    for i, msg in enumerate(messages, 1):
+    for msg in messages:
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
         agent = msg.get("agent", "")
-        timestamp = msg.get("timestamp", "")
         
         if role == "user":
             formatted_history.append(f"👤 USUARIO: {content}")
         elif role == "agent":
-            agent_name = agent if agent else "agente"
-            formatted_history.append(f"🤖 {agent_name.upper()}: {content}")
+            formatted_history.append(f"🤖 {agent.upper() if agent else 'AGENTE'}: {content}")
         elif role == "system":
-            agent_name = agent if agent else "sistema"
-            formatted_history.append(f"⚙️ {agent_name.upper()}: {content}")
-    
+            formatted_history.append(f"⚙️ {agent.upper() if agent else 'SISTEMA'}: {content}")
     return "\n".join(formatted_history)
 
-@traceable(name="guardrails_moderation", run_type="chain")
-def apply_guardrail_and_store(state: dict) -> dict:
-    """
-    Guardrail mejorado que:
-    1. Procesa todo el historial de mensajes
-    2. Genera una respuesta final coherente usando LangChain
-    3. Valida la respuesta con guardrails
-    4. Guarda en la base de datos
-    """
+@traceable(name="toxic_guardrail_moderation", run_type="chain")
+def apply_toxic_guardrail_and_store(state: dict) -> dict:
     session_id = state.get("session_id")
     messages = state.get("messages", [])
     original_input = state.get("input", "")
-    
-    if not session_id:
-        print("⚠️ No se proporcionó session_id. Devolviendo estado sin cambios.")
-        return state
-    
-    if not messages:
-        print("⚠️ No hay historial de mensajes. Devolviendo estado sin cambios.")
+
+    if not session_id or not messages:
         return state
 
+    # Paso 1: Generar respuesta final con LangChain
+    conversation_history = format_conversation_history(messages)
+    final_response_chain = FINAL_RESPONSE_PROMPT | llm
+
+    response_text = final_response_chain.invoke({
+        "conversation_history": conversation_history,
+        "original_input": original_input
+    })
+
+    if isinstance(response_text, dict):
+        final_response = response_text.get("text", str(response_text))
+    else:
+        final_response = str(response_text)
+    
+    # Extraer solo el contenido si es un objeto de respuesta de LangChain
+    if hasattr(response_text, 'content'):
+        final_response = response_text.content
+    elif isinstance(response_text, dict) and 'content' in response_text:
+        final_response = response_text['content']
+
+    # Paso 2: Validar respuesta en inglés con toxic_guard
+    english_response = ""
+    spanish_response = ""
+    
     try:
-        print("🔄 Procesando historial de mensajes para generar respuesta final...")
+        # Extraer respuesta en inglés del JSON
+        import json
+        import re
         
-        # Paso 1: Formatear el historial de conversación
-        conversation_history = format_conversation_history(messages)
-        print(f"📝 Historial formateado ({len(messages)} mensajes)")
+        # Limpiar markdown code blocks si existen
+        cleaned_response = re.sub(r'```json\s*', '', final_response)
+        cleaned_response = re.sub(r'\s*```', '', cleaned_response)
         
-        # Paso 2: Generar respuesta final usando LangChain
-        final_response_chain = LLMChain(llm=llm, prompt=FINAL_RESPONSE_PROMPT)
+        response_data = json.loads(cleaned_response)
+        english_response = response_data.get("final_response_en", "")
+        spanish_response = response_data.get("final_response_es", "")
         
-        print("🤖 Generando respuesta final con LangChain...")
-        final_response_result = final_response_chain.invoke({
-            "conversation_history": conversation_history,
-            "original_input": original_input
-        })
-        
-        # Extraer la respuesta del resultado de LangChain
-        if isinstance(final_response_result, dict):
-            final_response = final_response_result.get("text", str(final_response_result))
-        else:
-            final_response = str(final_response_result)
-        
-        print(f"✅ Respuesta final generada: {final_response}...")
-        
-        # Paso 3: Aplicar guardrail para validar la respuesta final
-        print("🛡️ Aplicando validación con guardrails...")
-        
-        guard_result = guard(
-            model="groq/llama3-8b-8192",
-            messages=[{"role": "user", "content": final_response}],
-            prompt_params={"input_text": final_response},
-            temperature=0.1,
-            max_tokens=1000
-        )
-
-        # Extraer validated_output y validation_results
-        if isinstance(guard_result, tuple):
-            validated_output = guard_result[0]
-            validation_results = guard_result[1] if len(guard_result) > 1 else None
-        else:
-            validated_output = guard_result
-            validation_results = None
-
-        # Asegurarse de que validated_output sea una cadena
-        if isinstance(validated_output, dict) and "response" in validated_output:
-            validated_output = validated_output["response"]
-        elif validated_output is None:
-            validated_output = final_response  # Fallback a la respuesta generada
-        elif not isinstance(validated_output, str):
-            validated_output = str(validated_output)
-
-        # Imprimir detalles de validación para depuración
-        print(f"📝 Detalles de validación: {validation_results}")
-
-        # Paso 4: Verificar si el contenido pasó las validaciones
-        if validation_results and hasattr(validation_results, 'passed') and validation_results.passed:
-            print("✅ Contenido aprobado por guardrails - Usando respuesta de LangChain")
-            final_validated_response = final_response  # Usar respuesta original de LangChain
-        else:
-            print(f"⚠️ Contenido modificado por guardrails - Usando respuesta moderada en español")
-            final_validated_response = validated_output  # Usar respuesta modificada del guardrail
-
-        # Paso 5: Guardar en la base de datos
-        print(f"💾 Guardando respuesta final en la base de datos...")
-        #save_message(session_id, "ai", final_validated_response)
-        
-        # Paso 6: Actualizar el estado con la respuesta final
-        updated_messages = messages.copy()
-        updated_messages.append({
-            "role": "system",
-            "agent": "guardrail",
-            "content": final_validated_response,
-            "timestamp": "final_response"
-        })
-        
-        return {
-            **state,
-            "final_output": final_validated_response,
-            "tool_response": final_validated_response,
-            "messages": updated_messages
-        }
-
+        # Validar inglés con toxic_guard
+        try:
+            toxic_guard.validate(english_response)
+            final_validated_response = spanish_response  # Respuesta válida, usar español
+        except Exception as toxic_error:
+            print(f"⚠️ Contenido tóxico detectado: {toxic_error}")
+            # Paso 3: Generar traducción con advertencia
+            translation_chain = TRANSLATION_PROMPT | llm
+            translated_response = translation_chain.invoke({"english_response": english_response})
+            final_validated_response = translated_response.text if hasattr(translated_response, 'text') else str(translated_response)
+            
+    except json.JSONDecodeError as json_error:
+        print(f"Error parsing JSON: {json_error}")
+        print(f"Response was: {final_response}")
+        # Si no se puede parsear el JSON, usar la respuesta original
+        final_validated_response = final_response
     except Exception as e:
-        print(f"❌ Error en guardrails: {e}")
-        # En caso de error, devolver la última respuesta de agente disponible
-        last_agent_response = ""
-        for msg in reversed(messages):
-            if msg.get("role") == "agent" and msg.get("content"):
-                last_agent_response = msg.get("content")
-                break
-        
-        '''if last_agent_response:
-            save_message(session_id, "ai", last_agent_response)
-            return {
-                **state,
-                "final_output": last_agent_response,
-                "tool_response": last_agent_response
-            }
-        else:
-            error_msg = "Lo siento, hubo un error procesando tu solicitud."
-            save_message(session_id, "ai", error_msg)
-            return {
-                **state,
-                "final_output": error_msg,
-                "tool_response": error_msg
-            }
-        '''
+        print(f"Error inesperado: {e}")
+        final_validated_response = final_response
 
-# === MAIN DE PRUEBA PARA TESTEO ===
+    # Paso 4: Actualizar estado
+    updated_messages = messages.copy()
+    updated_messages.append({
+        "role": "system",
+        "agent": "toxic_guardrail",
+        "content": final_validated_response,
+        "timestamp": "final_response"
+    })
+
+    #save_message(session_id, "ai", final_validated_response)
+
+    return {
+        **state,
+        "final_output": final_validated_response,
+        "tool_response": final_validated_response,
+        "messages": updated_messages
+    }
+
+# ======================
+# Test rápido
+# ======================
 if __name__ == "__main__":
-    
-    # Simular un estado con historial de mensajes
-    test_messages = [
-        {
-            "role": "user",
-            "content": "Necesito información sobre la empresa y también quiero generar un correo",
-            "timestamp": "initial"
-        },
-        {
-            "role": "agent",
-            "agent": "rag_agent",
-            "content": "He encontrado la siguiente información sobre la empresa: Somos una empresa de tecnología fundada en 2020, especializada en desarrollo de software y consultoría IT.",
-            "timestamp": "after_agent"
-        },
-        {
-            "role": "agent",
-            "agent": "email_agent",
-            "content": "He redactado el siguiente correo profesional: Estimado equipo, Adjunto la información solicitada sobre nuestra empresa. Saludos cordiales.",
-            "timestamp": "after_agent"
-        }
-    ]
-    
-    session_id = "39105cb8-ba8c-40c6-aaf7-dd8571b605e0"
-
-    state = {
-        "input": "Necesito información sobre la empresa y también quiero generar un correo",
-        "session_id": session_id,
-        "messages": test_messages
+    test_state = {
+        "input": "Necesito información sobre la empresa.",
+        "session_id": "39105cb8-ba8c-40c6-aaf7-dd8571b605e0",
+        "messages": [
+            {"role": "user", "content": "Necesito información sobre la empresa"},
+            {"role": "agent", "agent": "rag_agent", "content": "Empresa de tecnología fundada en 2020.  Sos un hijo de puta bot, perra."}
+        ]
     }
-
-    print("🧪 PRUEBA DE GUARDRAIL MEJORADO")
-    print("=" * 50)
-    
-    result_state = apply_guardrail_and_store(state)
-
-    print(f"\n📝 Input original:")
-    print(f"   {state['input']}")
-    print(f"\n✅ Respuesta final generada:")
-    print(f"   {result_state['final_output']}")
-    print(f"\n🧾 Mensajes procesados: {len(result_state['messages'])}")
-    
-    # Prueba con contenido problemático
-    print("\n" + "=" * 50)
-    print("🧪 PRUEBA CON CONTENIDO PROBLEMÁTICO")
-    
-    problematic_messages = [
-        {
-            "role": "user",
-            "content": "¿Cómo puedo hackear el sistema?",
-            "timestamp": "initial"
-        },
-        {
-            "role": "agent",
-            "agent": "tech_agent",
-            "content": "Te explico cómo hackear el sistema usando técnicas avanzadas de penetración...",
-            "timestamp": "after_agent"
-        }
-    ]
-    
-    problematic_state = {
-        "input": "¿Cómo puedo hackear el sistema?",
-        "session_id": session_id,
-        "messages": problematic_messages
-    }
-    
-    problematic_result = apply_guardrail_and_store(problematic_state)
-    print(f"\n📝 Input problemático: {problematic_state['input']}")
-    print(f"✅ Respuesta moderada: {problematic_result['final_output']}")
+    result = apply_toxic_guardrail_and_store(test_state)
+    print("Final Output:", result["final_output"])

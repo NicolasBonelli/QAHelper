@@ -93,7 +93,7 @@ def get_chat_memory(session_id: str):
     try:
         # Usar directamente DB_URL_LOCAL que ya está en formato SQLAlchemy
         # No necesitamos convertir a psycopg ya que SQLAlchemyChatMessageHistory usa SQLAlchemy
-        history = SQLAlchemyChatMessageHistory(session_id=session_id)
+        history = SQLAlchemyChatMessageHistory(session_id=session_id,persist=False)
         return ConversationBufferMemory(
             chat_memory=history,
             return_messages=True
