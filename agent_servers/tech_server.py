@@ -80,7 +80,14 @@ def generate_excel_from_data(tabla: str) -> str:
             return "Error: El módulo 'openpyxl' no está instalado. Ejecuta: pip install openpyxl"
         
         df = pd.read_csv(StringIO(tabla))
-        filename = "output.xlsx"
+        # Obtener el directorio del proyecto (un nivel arriba de agent_servers)
+        project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        output_dir = os.path.join(project_dir, "output")
+        
+        # Crear la carpeta output si no existe
+        os.makedirs(output_dir, exist_ok=True)
+        
+        filename = os.path.join(output_dir, "output.xlsx")
         df.to_excel(filename, index=False, engine='openpyxl')
         logger.info(f"Excel file generated successfully: {filename}")
         return f"Archivo Excel generado correctamente: {filename}"

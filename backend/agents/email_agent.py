@@ -41,24 +41,24 @@ Mensaje del usuario:
 # Prompt para ejecutar herramienta de email
 EXECUTE_EMAIL_PROMPT = """Eres un asistente especializado en redacción y gestión de correos electrónicos profesionales.
 
-ENTRADA:
--Input del usuario junto con la informacion recuperada {input_block}
-
 TAREA:
 Generar una respuesta útil basada en la herramienta seleccionada y el resultado obtenido.
 
-REGLAS:
-• Si se usó draft_and_send_email: Presenta el correo redactado de forma clara y profesional, menciona si fue enviado exitosamente
+REGLAS IMPORTANTES:
+• Si se usó draft_and_send_email: Presenta el correo redactado de forma clara y profesional
+• Menciona si fue enviado exitosamente
 • Mantén un tono profesional y útil
 • No uses tildes en español, escribe todo sin acentos
 • Estructura la respuesta de forma clara y organizada
-• Si es necesario, ofrece sugerencias adicionales o mejoras
-• Si hay errores de envío, explica claramente qué pasó
+• NO repitas información innecesariamente
+• NO dupliques contenido del correo
+• NO repitas frases o párrafos completos
+• Escribe cada idea UNA SOLA VEZ
 
-CASOS ESPECIALES:
-- Si el correo necesita más detalles: Sugiere información adicional
-- Si hay errores en el resultado: Ofrece una versión corregida o alternativas
-- Si el envío falló: Explica el error y posibles soluciones
+FORMATO DE RESPUESTA:
+1. Confirmar que el correo fue enviado
+2. Mostrar el contenido del correo de forma clara
+3. No repetir información
 
 Genera una respuesta natural y útil:"""
 
@@ -123,6 +123,24 @@ def insert_chat_session(session_id: str):
         print(f"[Email Agent] Error insertando sesión: {e}")
         if db:
             db.close()
+
+def clean_duplicate_content(text: str) -> str:
+    """Elimina contenido duplicado en el texto"""
+    if not text:
+        return text
+    
+    # Dividir por líneas y eliminar duplicados consecutivos
+    lines = text.split('\n')
+    cleaned_lines = []
+    prev_line = None
+    
+    for line in lines:
+        line = line.strip()
+        if line and line != prev_line:
+            cleaned_lines.append(line)
+            prev_line = line
+    
+    return '\n'.join(cleaned_lines)
 
 def email_agent_node(state):
     try:
@@ -191,14 +209,25 @@ def email_agent_node(state):
         ])
         input_block = f"Input del usuario: {user_input}\n\nResultado de la herramienta: {tool_result}"
 
-        reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt, memory=memory)
-        # CORRECCIÓN: usar invoke() y extraer 'text'
+        # Usar LLMChain sin memoria para evitar duplicaciones
+        reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt)
         final_output = reasoning_chain.invoke({"input_block": input_block})
-        # Robusto: si es string (primera vez), lo usamos directo; si es dict, sacamos solo el texto generado
+        
+        # Extraer solo el texto de la respuesta
         if isinstance(final_output, dict):
             final_response = final_output.get("text", str(final_output))
         else:
-            final_response = final_output
+            final_response = str(final_output)
+        
+        # Limpiar la respuesta para evitar duplicaciones
+        final_response = final_response.strip()
+        
+        # Aplicar limpieza de duplicados
+        final_response = clean_duplicate_content(final_response)
+        
+        # Debug: mostrar la respuesta antes de procesar
+        print(f"[Email Agent] Respuesta del LLM (raw): {final_response[:200]}...")
+        print(f"[Email Agent] Respuesta del LLM (cleaned): {final_response[:200]}...")
         
         # Agregar respuesta al historial de mensajes
         messages.append({
@@ -311,8 +340,6 @@ if __name__ == "__main__":
     # Test básico
     test_email_agent("Quiero redactar un correo para reportar un bug en la aplicación")
     
-    # Tests múltiples escenarios
-    test_multiple_scenarios()
     
     print("\n" + "="*80)
     print("TESTS COMPLETADOS")
