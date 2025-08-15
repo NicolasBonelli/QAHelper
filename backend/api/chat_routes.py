@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from supervisor.graph_builder import app as graph_app
 from models.api import ChatRequest, ChatResponse
+from utils.db_actions import insert_chat_session
 
 router = APIRouter(prefix="/chat", tags=["Chat Agent"])
 
@@ -14,6 +15,9 @@ def send_message(request: ChatRequest):
     try:
         # Generar session_id si no se proporciona
         session_id = request.session_id or str(uuid.uuid4())
+        
+        # Insertar la sesión en la base de datos antes de procesar
+        insert_chat_session(session_id)
         
         # Preparar el estado para el grafo
         state = {

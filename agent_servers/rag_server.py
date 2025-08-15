@@ -17,13 +17,27 @@ from backend.utils.llamaindex_utils import retrieve_chunks
 load_dotenv(override=True)
 MODEL = os.getenv("MODEL")
 
-# Configuración MCP sin parámetros obsoletos
 mcp = FastMCP(
     name="rag_agent",
-    instructions="Servidor MCP con herramientas dinámicas para RAG (Retrieval Augmented Generation) usando base de datos PostgreSQL",
+    instructions="Servidor MCP con herramientas dinamicas para RAG (Retrieval Augmented Generation) usando base de datos PostgreSQL",
     host = "0.0.0.0",
     port = 8050
 )
+
+@traceable(run_type="retriever", name="retrieve_chunks_from_db")
+def traced_retrieve_chunks(query: str, k: int = 5):
+    """
+    Recupera chunks y los retorna en formato compatible con LangSmith para visualizacion.
+    """
+    top_chunks = retrieve_chunks(query, k)
+    return [
+        {
+            "page_content": chunk.text,
+            "type": "Document",
+            "metadata": getattr(chunk, "metadata", {})
+        }
+        for chunk in top_chunks
+    ]
 
 # Herramientas implementadas
 @mcp.tool
@@ -33,34 +47,30 @@ def search_documents(query: str):
     return f"Resultados para '{query}':\n- Doc 1\n- Doc 2"
 
 
-from langchain.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
-
 @mcp.tool
 @traceable(run_type="tool", name="faq_query")
 def faq_query(query: str) -> str:
     """
-    Herramienta RAG avanzada que recupera los 5 chunks más relevantes desde la base de datos,
+    Herramienta RAG avanzada que recupera los 5 chunks m谩s relevantes desde la base de datos,
     los pasa como contexto a Gemini y genera una respuesta final usando LangChain.
     Argumentos: query:str
     """
     try:
-        # 1. Obtener los top 5 chunks más relevantes
-        top_chunks = retrieve_chunks(query,  5)
+        retrieved_docs = traced_retrieve_chunks(query, 5)
         
-        if not top_chunks:
+        if not retrieved_docs:
             return "No se encontraron documentos relevantes para tu consulta."
         
         # 2. Unir todos los chunks en un solo texto de contexto
-        context_text = "\n\n".join([chunk.text for chunk in top_chunks])
+        context_text = "\n\n".join([doc["page_content"] for doc in retrieved_docs])
         
         # 3. Crear el prompt con LangChain
         prompt_template = ChatPromptTemplate.from_template("""
-        Eres un asistente experto en la empresa. Responde de manera clara, concisa y útil 
-        a la siguiente pregunta del usuario basándote exclusivamente en la información 
+        Eres un asistente experto en la empresa. Responde de manera clara, concisa y util 
+        a la siguiente pregunta del usuario basandote exclusivamente en la informacion 
         proporcionada en el contexto.
 
-        Si no hay suficiente información para responder, indícalo claramente sin inventar datos.
+        Si no hay suficiente informacion para responder, indicalo claramente sin inventar datos.
 
         ---
         Contexto:
@@ -74,10 +84,9 @@ def faq_query(query: str) -> str:
         
         # 4. Crear el modelo Gemini
         llm = ChatGoogleGenerativeAI(
-            model=MODEL,  # Puedes cambiar por el modelo que prefieras
+            model=MODEL,
             temperature=0,
             google_api_key=os.getenv("GOOGLE_API_KEY")
-
         )
         
         # 5. Ejecutar la cadena
@@ -92,7 +101,5 @@ def faq_query(query: str) -> str:
 
 
 if __name__ == "__main__":
-    print("🚀 Iniciando servidor RAG MCP en puerto 8050...")
+    print("Iniciando servidor RAG MCP en puerto 8050...")
     mcp.run(transport="sse")
-
-    

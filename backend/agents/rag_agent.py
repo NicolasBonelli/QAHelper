@@ -13,9 +13,10 @@ from mcp.client.sse import sse_client
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from uuid import uuid4
-from backend.config import DB_URL
+from config import DB_URL
 from langchain.memory import ConversationBufferMemory
-from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
+from utils.db_chat_history import SQLAlchemyChatMessageHistory
+from utils.db_actions import insert_chat_session
 
 
 nest_asyncio.apply()

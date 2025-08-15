@@ -1,5 +1,5 @@
-from backend.utils.db_connection import SessionLocal
-from ..models.db import DocumentEmbedding, ChatSession, ChatMessage
+from utils.db_connection import SessionLocal
+from models.db import DocumentEmbedding, ChatSession, ChatMessage
 from llama_index.core import VectorStoreIndex, Document
 from llama_index.core.schema import Node
 import numpy as np
@@ -89,6 +89,27 @@ def create_index_from_pg():
     print("✅ Índice cargado desde storage_context")
 
     return index
+
+def insert_chat_session(session_id: str):
+    """Inserta una nueva sesión en la tabla chat_sessions"""
+    try:
+        db = SessionLocal()
+        # Verificar si la sesión ya existe
+        existing_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        
+        if not existing_session:
+            new_session = ChatSession(id=session_id)
+            db.add(new_session)
+            db.commit()
+            print(f"[DB Actions] Nueva sesión creada: {session_id}")
+        else:
+            print(f"[DB Actions] Sesión ya existe: {session_id}")
+        
+        db.close()
+    except Exception as e:
+        print(f"[DB Actions] Error insertando sesión: {e}")
+        if db:
+            db.close()
 
 if __name__ == "__main__":
     save_message("39105cb8-ba8c-40c6-aaf7-dd8571b605e0","ai","A ver")

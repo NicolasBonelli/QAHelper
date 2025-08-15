@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 from utils.db_connection import Base, engine
-from models.db import DocumentEmbedding
+
 
 # Importar routers
 from api.s3_routes import router as s3_router

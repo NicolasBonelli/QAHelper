@@ -48,14 +48,13 @@ initial_prompt = ChatPromptTemplate.from_messages([
 ])
 
 
-# Prompt para supervisión después de que un agente complete su tarea
 supervisor_prompt = ChatPromptTemplate.from_messages([
     ("system", 
      "Eres un supervisor inteligente que evalúa las respuestas de los agentes y decide el siguiente paso basándote en las herramientas disponibles.\n\n"
      "HERRAMIENTAS POR AGENTE:\n"
      "- rag_agent: search_documents (buscar en documentos), faq_query (consultas sobre la empresa)\n"
      "- sentiment_agent: calm_down_user (calmar usuarios molestos), warn_or_ban_user (advertir usuarios agresivos)\n"
-     "- email_agent: draft_professional_email (redactar correos), summarize_email (resumir correos)\n"
+     "- email_agent: draft_professional_email (redactar correos)\n"
      "- tech_agent: generate_excel_from_data (generar Excel), summarize_text (resumir textos)\n\n"
      "OPCIONES DE SALIDA:\n"
      "- 'guardrail': si la respuesta del agente es clara, finaliza la tarea del usuario, y no hay nuevas necesidades pendientes.\n"
@@ -65,24 +64,29 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
      "- La respuesta del agente contiene una redacción final, como un correo completo, un resumen, un archivo generado, etc.\n"
      "- No se menciona ninguna otra necesidad en el historial de conversación.\n"
      "- Ya se han ejecutado todos los agentes necesarios para resolver la tarea.\n\n"
+     "REGLAS IMPORTANTES PARA EVITAR CICLOS:\n"
+     "1. Nunca ejecutar un agente que ya figure en 'Agentes ya ejecutados'.\n"
+     "2. Si un agente ya alcanzó su número máximo permitido de ejecuciones (por ejemplo: rag_agent → máximo 2 veces), no volver a seleccionarlo.\n"
+     "3. Si todos los agentes posibles ya se han usado o alcanzaron su límite, devolver 'guardrail'.\n\n"
      "CONTEXTO:\n"
      "- Input original del usuario: {original_input}\n"
      "- Agente que acaba de ejecutarse: {current_agent}\n"
      "- Respuesta del agente: {agent_response}\n"
      "- Historial completo de la conversación: {conversation_history}\n"
-     "- Agentes ya ejecutados: {executed_agents}\n\n"
+     "- Agentes ya ejecutados (con conteo de ejecuciones): {executed_agents}\n\n"
      "ANÁLISIS:\n"
      "1. Revisa el historial para entender la necesidad original del usuario.\n"
      "2. Evalúa si la respuesta del agente satisface completamente esa necesidad.\n"
      "3. Considera si el usuario expresa nuevas necesidades o si hay tareas pendientes.\n"
-     "4. Revisa qué agentes ya se han ejecutado para evitar llamar al mismo agente repetidamente.\n"
-     "5. Si todo está resuelto, responde: guardrail\n"
-     "6. Si falta algo o hay nueva necesidad, responde con el nombre del agente que debe intervenir\n\n"
+     "4. Revisa qué agentes ya se han ejecutado y cuántas veces.\n"
+     "5. Si todo está resuelto o no quedan agentes habilitados, responde: guardrail\n"
+     "6. Si falta algo y existe un agente válido que no superó su límite, responde solo con su nombre.\n\n"
      "IMPORTANTE: Responde con solo una palabra: guardrail, rag_agent, sentiment_agent, email_agent o tech_agent\n\n"
      "Ejemplos de flujo correcto:\n"
      "Input: 'Esta app es una mierda' → sentiment_agent → 'Entendemos tu frustración...' → guardrail\n"
-     "Input: 'Necesito info y un correo' → rag_agent → 'Info encontrada...' → email_agent → 'Correo redactado...' → guardrail"),
-    ("human", "Decide el siguiente paso basándote en la respuesta del agente y el historial completo")
+     "Input: 'Necesito info y un correo' → rag_agent → 'Info encontrada...' → email_agent → 'Correo redactado...' → guardrail\n"
+     "Input: 'Necesito más datos' → rag_agent (1ª vez) → email_agent → rag_agent (2ª vez) → guardrail (ya alcanzó el límite)"),
+    ("human", "Decide el siguiente paso basándote en la respuesta del agente, el historial y los límites de ejecución")
 ])
 
 

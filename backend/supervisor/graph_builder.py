@@ -2,7 +2,7 @@ import os
 from typing import TypedDict
 from typing import List
 from langgraph.graph import StateGraph
-from backend.utils.db_actions import save_message
+from utils.db_actions import save_message
 # LangGraph espera un dict como estado
 # Nosotros vamos a usar estas keys
 # - input: texto del usuario
@@ -27,7 +27,7 @@ class State(TypedDict):
     executed_agents: List[str]  # Array con historial de agentes ejecutados
 
 # Nodo supervisor que evalúa la respuesta del agente y decide el siguiente paso
-from backend.supervisor.agent_supervisor import classify_with_gemini, supervise_agent_response
+from supervisor.agent_supervisor import classify_with_gemini, supervise_agent_response
 
 def supervisor_node(state):
     """
@@ -108,17 +108,17 @@ def finalize_output(state):
     }
 
 # Importar los agentes
-from backend.agents.rag_agent import rag_agent_node
-from backend.agents.sentiment_agent import sentiment_agent_node
-from backend.agents.email_agent import email_agent_node
-from backend.agents.tech_agent import tech_agent_node
+from agents.rag_agent import rag_agent_node
+from agents.sentiment_agent import sentiment_agent_node
+from agents.email_agent import email_agent_node
+from agents.tech_agent import tech_agent_node
 
 # Construcción del grafo
 builder = StateGraph(State)
 
 # Los agentes ya están implementados con sus funciones reales
 # No necesitamos agent_prueba ya que cada agente tiene su propia función
-from backend.moderation.guardrail import apply_guardrail_and_store
+from moderation.guardrail import apply_toxic_guardrail_and_store
 
 def guardrail_node(state: dict) -> dict:
     """
@@ -126,7 +126,7 @@ def guardrail_node(state: dict) -> dict:
     genera una respuesta final coherente y la valida
     """
     
-    return apply_guardrail_and_store(state)
+    return apply_toxic_guardrail_and_store(state)
 
 # Agregar nodos
 builder.add_node("guardrail", guardrail_node)

@@ -9,11 +9,9 @@ from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 import psycopg
-from backend.config import DB_URL_LOCAL
 from langchain.memory import ConversationBufferMemory
-from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
-from backend.models.db import ChatSession
-from backend.utils.db_connection import SessionLocal
+from utils.db_chat_history import SQLAlchemyChatMessageHistory
+from utils.db_actions import insert_chat_session
 from uuid import uuid4
 
 nest_asyncio.apply()
@@ -93,7 +91,7 @@ def get_chat_memory(session_id: str):
     try:
         # Usar directamente DB_URL_LOCAL que ya está en formato SQLAlchemy
         # No necesitamos convertir a psycopg ya que SQLAlchemyChatMessageHistory usa SQLAlchemy
-        history = SQLAlchemyChatMessageHistory(session_id=session_id,persist=False)
+        history = SQLAlchemyChatMessageHistory(session_id=session_id)
         return ConversationBufferMemory(
             chat_memory=history,
             return_messages=True
@@ -103,26 +101,7 @@ def get_chat_memory(session_id: str):
         # Fallback: retornar memoria sin persistencia
         return ConversationBufferMemory(return_messages=True)
 
-def insert_chat_session(session_id: str):
-    """Inserta una nueva sesión en la tabla chat_sessions"""
-    try:
-        db = SessionLocal()
-        # Verificar si la sesión ya existe
-        existing_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-        
-        if not existing_session:
-            new_session = ChatSession(id=session_id)
-            db.add(new_session)
-            db.commit()
-            print(f"[Email Agent] Nueva sesión creada: {session_id}")
-        else:
-            print(f"[Email Agent] Sesión ya existe: {session_id}")
-        
-        db.close()
-    except Exception as e:
-        print(f"[Email Agent] Error insertando sesión: {e}")
-        if db:
-            db.close()
+
 
 def clean_duplicate_content(text: str) -> str:
     """Elimina contenido duplicado en el texto"""

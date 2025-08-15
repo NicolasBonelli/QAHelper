@@ -1,10 +1,10 @@
-name: QAHelper CI/CD Pipeline
+#name: QAHelper CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+    #branches: [ main, develop ]
+  #pull_request:
+    #branches: [ main, develop ]
 
 env:
   PYTHON_VERSION: '3.11'

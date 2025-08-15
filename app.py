@@ -7,9 +7,8 @@ import requests
 import os
 from dotenv import load_dotenv
 
-from backend.utils.s3_utils import upload_text_to_s3
-load_dotenv()
-
+load_dotenv(override=True)
+BACKEND_URL = os.getenv('BACKEND_URL')
 # --- Configuración clave API (Gemini Pro Vision) ---
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 GEMINI_API_URL = os.getenv('GEMINI_API_URL')
@@ -19,7 +18,6 @@ AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("BUCKET_NAME")
 
 # --- Configuración del backend ---
-BACKEND_URL = "http://localhost:8000"
 
 def image_to_base64(image: Image.Image) -> str:
     """Convierte imagen PIL a base64 para enviar a Gemini"""

@@ -16,7 +16,7 @@ def test_sentiment_tech_flow():
     print("\n🧠 Test Específico: Sentimientos → Tech → Guardrail")
     print("=" * 60)
     
-    test_input = '''¿Qué KPIs puede usar AIStart?'''
+    test_input = '''¿Qué KPIs puede usar AIStart?. '''
     
     
     initial_state = {

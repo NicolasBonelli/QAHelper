@@ -2,7 +2,7 @@ from celery import Celery
 import boto3
 import os
 from dotenv import load_dotenv
-from utils.llamaindex_utils import chunk_faq_semantic
+from utils.llamaindex_utils import chunk_faq_recursive
 from utils.db_actions import save_chunks_to_db
 import uuid
 
@@ -21,7 +21,7 @@ def process_s3_file(bucket, key):
     content = response["Body"].read().decode("utf-8")
     print(f"✅ Texto procesado:\n{content[:200]}...")
 
-    chunks = chunk_faq_semantic(content)
+    chunks = chunk_faq_recursive(content)
     print(f"✅ Chunks generados: {len(chunks)}")
 
     doc_id = str(uuid.uuid4())  # ID único del documento

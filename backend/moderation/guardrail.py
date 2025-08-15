@@ -5,7 +5,9 @@ from guardrails.hub import ToxicLanguage
 from guardrails import Guard
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
-#from backend.utils.db_actions import save_message
+from langchain.memory import ConversationBufferMemory
+from utils.db_chat_history import SQLAlchemyChatMessageHistory
+from utils.db_actions import save_message
 
 load_dotenv(override=True)
 
@@ -20,6 +22,22 @@ llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0.0, google_api_key=GEMINI
 # Guard de toxicidad (del toxic_guardrail.py)
 # ======================
 toxic_guard = Guard().use(ToxicLanguage, threshold=0.9, validation_method="sentence", on_fail="exception")
+
+# ======================
+# Función get_chat_memory (igual que en otros agentes)
+# ======================
+def get_chat_memory(session_id: str):
+    """Devuelve la memoria basada en historial en PostgreSQL"""
+    try:
+        history = SQLAlchemyChatMessageHistory(session_id=session_id, persist=False)
+        return ConversationBufferMemory(
+            chat_memory=history,
+            return_messages=True
+        )
+    except Exception as e:
+        print(f"[Guardrail] Error en get_chat_memory: {e}")
+        # Fallback: retornar memoria sin persistencia
+        return ConversationBufferMemory(return_messages=True)
 
 # ======================
 # Prompt de LangChain (del guardrail2.py)
@@ -45,8 +63,8 @@ FINAL_RESPONSE_PROMPT = ChatPromptTemplate.from_messages([
      "  \"final_response_es\": \"Respuesta final en español con tono natural y conversacional\",\n"
      "  \"final_response_en\": \"Final response in English with natural and conversational tone\"\n"
      "}}\n\n"
-     "HISTORIAL:\n{conversation_history}"),
-    ("human", "Necesidad original del usuario: {original_input}")
+     "HISTORIAL:\n{conversation_history}\n\n"
+     "Necesidad original del usuario: {original_input}")
 ])
 
 # Prompt para traducción con advertencia
@@ -59,8 +77,24 @@ def format_conversation_history(messages: list) -> str:
     if not messages:
         return "No hay historial de conversación disponible."
     
-    formatted_history = []
+    # Eliminar mensajes duplicados basándose en contenido y agente
+    seen_messages = set()
+    unique_messages = []
+    
     for msg in messages:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+        agent = msg.get("agent", "")
+        
+        # Crear una clave única para identificar duplicados
+        message_key = f"{role}:{agent}:{content[:100]}"  # Primeros 100 caracteres
+        
+        if message_key not in seen_messages:
+            seen_messages.add(message_key)
+            unique_messages.append(msg)
+    
+    formatted_history = []
+    for msg in unique_messages:
         role = msg.get("role", "unknown")
         content = msg.get("content", "")
         agent = msg.get("agent", "")
@@ -82,14 +116,22 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
     if not session_id or not messages:
         return state
 
-    # Paso 1: Generar respuesta final con LangChain
+    # Paso 1: Generar respuesta final con LangChain usando memoria de PostgreSQL
     conversation_history = format_conversation_history(messages)
-    final_response_chain = FINAL_RESPONSE_PROMPT | llm
-
-    response_text = final_response_chain.invoke({
-        "conversation_history": conversation_history,
-        "original_input": original_input
-    })
+    memory = get_chat_memory(session_id)
+    
+    # Usar LLMChain con memoria para mantener contexto
+    from langchain.chains import LLMChain
+    final_response_chain = LLMChain(llm=llm, prompt=FINAL_RESPONSE_PROMPT, memory=memory)
+    
+    # Crear el prompt con las variables correctamente
+    formatted_prompt = FINAL_RESPONSE_PROMPT.format(
+        conversation_history=conversation_history,
+        original_input=original_input
+    )
+    
+    # Invocar directamente con el LLM
+    response_text = llm.invoke(formatted_prompt)
 
     if isinstance(response_text, dict):
         final_response = response_text.get("text", str(response_text))
@@ -126,9 +168,9 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
         except Exception as toxic_error:
             print(f"⚠️ Contenido tóxico detectado: {toxic_error}")
             # Paso 3: Generar traducción con advertencia
-            translation_chain = TRANSLATION_PROMPT | llm
-            translated_response = translation_chain.invoke({"english_response": english_response})
-            final_validated_response = translated_response.text if hasattr(translated_response, 'text') else str(translated_response)
+            formatted_translation_prompt = TRANSLATION_PROMPT.format(english_response=english_response)
+            translated_response = llm.invoke(formatted_translation_prompt)
+            final_validated_response = translated_response.content if hasattr(translated_response, 'content') else str(translated_response)
             
     except json.JSONDecodeError as json_error:
         print(f"Error parsing JSON: {json_error}")
@@ -148,7 +190,7 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
         "timestamp": "final_response"
     })
 
-    #save_message(session_id, "ai", final_validated_response)
+    save_message(session_id, "ai", final_validated_response)
 
     return {
         **state,
