@@ -23,11 +23,12 @@ AGENT_MAP = {
 initial_prompt = ChatPromptTemplate.from_messages([
     ("system", 
      "Sos un agente que debe clasificar mensajes de usuarios en una de las siguientes tareas basándote en las herramientas disponibles:\n\n"
-     "- guardrail: cuando el mensaje no coincide con ninguna de las categorías anteriores (por ejemplo: saludos, frases sin contexto, mensajes irrelevantes)\n\n"     
      "- consulta_documento: cuando el usuario quiere buscar información en documentos o hacer consultas sobre la empresa (herramientas: search_documents, faq_query)\n"
      "- analisis_sentimiento: cuando el usuario expresa enojo, frustración, insultos o necesita gestión emocional (herramientas: calm_down_user, warn_or_ban_user)\n"
      "- generar_email: cuando el usuario quiere redactar correos profesionales o resumir correos existentes (herramientas: draft_professional_email, summarize_email)\n"
      "- tarea_tecnica: cuando el usuario quiere generar archivos Excel desde datos o resumir textos largos (herramientas: generate_excel_from_data, summarize_text)\n"
+     "- guardrail: cuando el mensaje no coincide con ninguna de las categorías anteriores (por ejemplo: saludos, frases sin contexto, mensajes irrelevantes, preguntas que no tengan que ver con la empresa)\n\n"     
+
      "REGLAS:\n"
      "1. Si el mensaje contiene enojo, agresión, insultos o frustración, devolvé **analisis_sentimiento**, aunque el mensaje también incluya otra necesidad.\n"
      "2. Si no hay señales de agresión, clasificá según la necesidad principal del usuario.\n"

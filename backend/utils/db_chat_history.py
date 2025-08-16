@@ -1,8 +1,8 @@
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy.orm import Session
-from models.db import ChatMessage  # ajustá si tu modelo está en otro archivo
-from utils.db_connection import SessionLocal  # conexión a la DB (tuya)
+from backend.models.db import ChatMessage
+from backend.utils.db_connection import SessionLocal
 from uuid import UUID
 
 class SQLAlchemyChatMessageHistory(BaseChatMessageHistory):

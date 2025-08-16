@@ -29,45 +29,53 @@ DEFAULT_DESTINATION = "nico-bonellidelhoyo@hotmail.com"  # Aquí tu destino fijo
 
 @mcp.tool
 @traceable(run_type="tool", name="draft_professional_email")
-def draft_and_send_email(from_person: str, subject: str, body: str) -> dict:
+def draft_and_send_email(from_person: str, subject: str, body: str, session_id: str = None) -> dict:
     """
-    Redacta un correo profesional y lo envía a un destino fijo usando SMTP de Google.
-    El remitente visible será la persona que lo manda.
+    Redacta un correo profesional a partir de TODO lo que el usuario escribió y lo envía a un destino fijo.
+    Si no hay nombre, usa el session_id como remitente.
     """
     try:
-        # 1. Redactar con LLM
+        # Si no se especifica el nombre, usar session_id
+        if not from_person or from_person.strip() == "":
+            from_person = session_id if session_id else "Usuario"
+
+        # Prompt enfocado en resultado final, no en borradores ni instrucciones
         prompt = f"""
-        Redacta un correo profesional y bien escrito, con un tono cordial y claro.
+        Redacta un correo profesional, claro y cordial dirigido a la empresa.
+
+        - Utiliza TODA la información proporcionada por el usuario tal como fue mencionada,
+          adaptándola a un formato de correo formal y bien escrito.
+        - Si el usuario hizo múltiples consultas (por ejemplo, problemas con factura y preguntas de KPIs),
+          inclúyelas todas dentro del mismo correo.
+        - No expliques cómo lo redactarías ni des ejemplos, devuelve únicamente el texto final del correo.
+        - No incluyas encabezados como "To:", "Subject:" ni firmas automáticas.
+        - Si el remitente es genérico como 'Usuario', no uses un saludo con nombre.
+        - No inventes datos que no se mencionaron.
 
         Remitente: {from_person}
-        Destinatario fijo: {DEFAULT_DESTINATION}
         Asunto: {subject}
-        Mensaje original: {body}
+        Texto original del usuario: {body}
 
-        Solo devuelve el contenido del correo, sin encabezados tipo "To", "Subject" ni firmas.
+        Cuerpo final del correo:
         """
+
         drafted_body = llm.invoke(prompt).content.strip()
 
-        # 2. Configurar el correo
+        # Preparar mensaje para envío
         msg = MIMEMultipart()
         msg['From'] = formataddr((from_person, os.getenv("GMAIL_EMAIL")))
         msg['To'] = DEFAULT_DESTINATION
         msg['Subject'] = subject
         msg['Reply-To'] = from_person
-        
-        # Adjuntar el cuerpo del mensaje
+
         msg.attach(MIMEText(drafted_body, 'plain', 'utf-8'))
 
-        # 3. Enviar con SMTP de Google
+        # Enviar correo automáticamente
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()  # Habilitar encriptación
+            server.starttls()
             server.login(os.getenv("GMAIL_EMAIL"), os.getenv("GMAIL_APP_PASSWORD"))
-            
-            # Enviar el correo
-            text = msg.as_string()
-            server.sendmail(os.getenv("GMAIL_EMAIL"), DEFAULT_DESTINATION, text)
+            server.sendmail(os.getenv("GMAIL_EMAIL"), DEFAULT_DESTINATION, msg.as_string())
 
-        # 4. Respuesta exitosa
         return {
             "from": os.getenv("GMAIL_EMAIL"),
             "reply_to": from_person,
@@ -79,7 +87,6 @@ def draft_and_send_email(from_person: str, subject: str, body: str) -> dict:
         }
 
     except Exception as e:
-        # 5. Respuesta con error
         return {
             "from": os.getenv("GMAIL_EMAIL"),
             "reply_to": from_person,
@@ -89,6 +96,7 @@ def draft_and_send_email(from_person: str, subject: str, body: str) -> dict:
             "status": "error",
             "message": f"Error al enviar correo: {str(e)}"
         }
+
 
 
 if __name__ == "__main__":

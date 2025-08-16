@@ -9,11 +9,11 @@ from utils.db_connection import Base, engine
 
 
 # Importar routers
-from api.s3_routes import router as s3_router
-from api.chat_routes import router as chat_router
-from api.files_routes import router as files_router
+from backend.api.s3_routes import router as s3_router
+from backend.api.chat_routes import router as chat_router
+from backend.api.files_routes import router as files_router
 
-from api.config import (
+from backend.api.config import (
     API_TITLE, API_DESCRIPTION, API_VERSION,
     CORS_ORIGINS, CORS_ALLOW_CREDENTIALS, CORS_ALLOW_METHODS, CORS_ALLOW_HEADERS,
     HOST, PORT

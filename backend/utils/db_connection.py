@@ -1,9 +1,12 @@
+import sys
+sys.path.append("..")
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from config import DB_URL_LOCAL
+from backend.config import DB_URL_LOCAL
 
 engine = create_engine(DB_URL_LOCAL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-Base = declarative_base()
+
+# Importar la base desde models.db para evitar duplicación
+from backend.models.db import Base
 

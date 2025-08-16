@@ -17,7 +17,7 @@ AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("BUCKET_NAME")
 
-# --- Configuración del backend ---
+# ------------------------------ Utilidades ------------------------------
 
 def image_to_base64(image: Image.Image) -> str:
     """Convierte imagen PIL a base64 para enviar a Gemini"""
@@ -30,10 +30,7 @@ def pedir_a_gemini(imagen_pil: Image.Image) -> str:
     """Envía la imagen a la API de Gemini y devuelve el texto detectado"""
     img_base64 = image_to_base64(imagen_pil)
 
-    headers = {
-        "Content-Type": "application/json"
-    }
-
+    headers = {"Content-Type": "application/json"}
     data = {
         "contents": [
             {
@@ -42,18 +39,16 @@ def pedir_a_gemini(imagen_pil: Image.Image) -> str:
                     {
                         "inline_data": {
                             "mime_type": "image/png",
-                            "data": img_base64
+                            "data": img_base64,
                         }
-                    }
+                    },
                 ]
             }
         ]
     }
 
     response = requests.post(
-        GEMINI_API_URL + f"?key={GEMINI_API_KEY}",
-        headers=headers,
-        json=data
+        GEMINI_API_URL + f"?key={GEMINI_API_KEY}", headers=headers, json=data
     )
 
     if response.status_code == 200:
@@ -62,52 +57,125 @@ def pedir_a_gemini(imagen_pil: Image.Image) -> str:
     else:
         return f"Error de Gemini ({response.status_code}): {response.text}"
 
-# --- Streamlit UI ---
+# ------------------------------ UI ------------------------------
+
+st.set_page_config(page_title="Startup Support Agent", page_icon="🤖", layout="centered")
 st.title("Startup Support Agent")
 
-option = st.radio("¿Qué querés hacer?", ["📄 Cargar documento", "🤖 Ir al chat", "📁 Gestionar archivos"])
-poppler_path = r'C:\Users\hecto\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin'
+# --- Apariencia tipo GPT
+st.markdown(
+    """
+    <style>
+    .block-container {padding-top: 2rem;}
+    /* Burbujas estilo chat */
+    .assistant-bubble {background:#f7f7f8;border:1px solid #e5e7eb;padding:12px 14px;border-radius:18px;max-width:85%;}
+    .user-bubble {background:#e6f0ff;border:1px solid #c9dcff;padding:12px 14px;border-radius:18px; margin-left:auto; max-width:85%;}
+    .role {font-size:0.8rem; opacity:0.7; margin-bottom:4px;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-if option == "📄 Cargar documento":
+# Poner el chat primero y seleccionado por defecto
+menu_opts = ["🤖 Ir al chat", "📄 Cargar documento", "📁 Gestionar archivos"]
+option = st.radio("¿Qué querés hacer?", menu_opts, index=0, horizontal=True)
+
+# --- Session ID y estado del chat ---
+import uuid
+if "session_id" not in st.session_state:
+    st.session_state["session_id"] = str(uuid.uuid4())
+
+if "messages" not in st.session_state:
+    # Cada item: {"role": "user"|"assistant", "content": str}
+    st.session_state["messages"] = []
+
+# ------------------------------ CHAT ------------------------------
+if option == "🤖 Ir al chat":
+    st.subheader("Chat con el Agente Inteligente")
+    st.caption(f"Sesión: {st.session_state['session_id']}")
+
+    # Mostrar historial (usando el nuevo API de chat de Streamlit para look & feel GPT)
+    for msg in st.session_state["messages"]:
+        with st.chat_message("assistant" if msg["role"] == "assistant" else "user"):
+            st.markdown(msg["content"])
+
+    # Entrada de chat al pie, al estilo ChatGPT
+    user_input = st.chat_input("Escribí tu mensaje…")
+
+    if user_input:
+        # 1) Mostrar inmediatamente el mensaje del usuario
+        st.session_state["messages"].append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        # 2) Llamar al backend y mostrar respuesta con spinner
+        try:
+            chat_data = {"message": user_input, "session_id": st.session_state["session_id"]}
+            with st.chat_message("assistant"):
+                with st.spinner("Pensando…"):
+                    resp = requests.post(f"{BACKEND_URL}/chat/send", json=chat_data, timeout=120)
+                    if resp.status_code == 200:
+                        result = resp.json()
+                        assistant_text = result.get("response", "(Sin respuesta)")
+                    else:
+                        assistant_text = f"Error en el chat: {resp.text}"
+                st.markdown(assistant_text)
+            st.session_state["messages"].append({"role": "assistant", "content": assistant_text})
+        except Exception as e:
+            error_text = f"Error de conexión: {e}"
+            with st.chat_message("assistant"):
+                st.markdown(error_text)
+            st.session_state["messages"].append({"role": "assistant", "content": error_text})
+
+    # Botones útiles
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("🧹 Limpiar historial"):
+            st.session_state["messages"] = []
+            st.rerun()
+    with col_b:
+        if st.button("🪪 Nueva sesión"):
+            st.session_state["messages"] = []
+            st.session_state["session_id"] = str(uuid.uuid4())
+            st.rerun()
+
+# ------------------------------ CARGAR DOCUMENTO ------------------------------
+elif option == "📄 Cargar documento":
+    poppler_path = r'C:\\Users\\hecto\\Downloads\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin'
     uploaded_file = st.file_uploader("Subí un PDF de soporte", type=["pdf"])
     if uploaded_file is not None:
-        st.info("Convirtiendo PDF en imágenes...")
+        st.info("Convirtiendo PDF en imágenes…")
         images = convert_from_bytes(uploaded_file.read(), poppler_path=poppler_path)
 
         all_text = ""
         for i, image in enumerate(images):
-            st.image(image, caption=f"Página {i+1}", use_container_width =True)
+            st.image(image, caption=f"Página {i+1}", use_container_width=True)
 
-            st.write(f"🧠 Enviando página {i+1} a Gemini...")
+            st.write(f"🧠 Enviando página {i+1} a Gemini…")
             texto = pedir_a_gemini(image)
             all_text += f"\n--- Página {i+1} ---\n{texto}"
 
         st.success("Texto extraído del PDF:")
         st.text_area("Texto completo del documento", all_text, height=400)
-        
+
         # Subir a S3 usando la nueva API
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"faq_{timestamp}"
-        
-        s3_data = {
-            "text": all_text,
-            "filename": filename,
-            "bucket": S3_BUCKET
-        }
-        
+
+        s3_data = {"text": all_text, "filename": filename, "bucket": S3_BUCKET}
+
         try:
-            response = requests.post(f"{BACKEND_URL}/s3/upload", json=s3_data)
+            response = requests.post(f"{BACKEND_URL}/s3/upload", json=s3_data, timeout=120)
             if response.status_code == 200:
                 result = response.json()
                 st.success(f"Texto subido a S3 correctamente. Key: {result['key']}")
-                
+
                 # Procesar el archivo
-                process_data = {
-                    "bucket": result["bucket"],
-                    "key": result["key"]
-                }
-                
-                process_response = requests.post(f"{BACKEND_URL}/s3/process", json=process_data)
+                process_data = {"bucket": result["bucket"], "key": result["key"]}
+
+                process_response = requests.post(
+                    f"{BACKEND_URL}/s3/process", json=process_data, timeout=120
+                )
                 if process_response.status_code == 200:
                     st.success("Tarea enviada para procesar el archivo.")
                 else:
@@ -116,46 +184,22 @@ if option == "📄 Cargar documento":
                 st.error(f"Error al subir a S3: {response.text}")
         except Exception as e:
             st.error(f"Error de conexión al backend: {e}")
-        
-elif option == "🤖 Ir al chat":
-    import uuid
-    if "session_id" not in st.session_state:
-        st.session_state["session_id"] = str(uuid.uuid4())
-    
-    st.write("### Chat con el Agente Inteligente")
-    st.write(f"**Sesión ID:** {st.session_state['session_id']}")
 
-    # Interfaz de chat
-    user_input = st.text_input("Tu mensaje:", key="user_input")
-    
-    if st.button("Enviar") and user_input:
-        chat_data = {
-            "message": user_input,
-            "session_id": st.session_state["session_id"]
-        }
-        
-        try:
-            response = requests.post(f"{BACKEND_URL}/chat/send", json=chat_data)
-            if response.status_code == 200:
-                result = response.json()
-                st.write(f"**Agente:** {result['response']}")
-            else:
-                st.error(f"Error en el chat: {response.text}")
-        except Exception as e:
-            st.error(f"Error de conexión: {e}")
-
+# ------------------------------ GESTIONAR ARCHIVOS ------------------------------
 elif option == "📁 Gestionar archivos":
-    st.write("### Gestión de Archivos PDF")
-    
+    st.subheader("Gestión de Archivos PDF")
+
     # Subir archivo
     st.write("#### Subir archivo PDF")
-    uploaded_pdf = st.file_uploader("Selecciona un PDF para subir", type=["pdf"], key="pdf_uploader")
-    
+    uploaded_pdf = st.file_uploader(
+        "Selecciona un PDF para subir", type=["pdf"], key="pdf_uploader"
+    )
+
     if uploaded_pdf is not None:
         if st.button("Subir archivo"):
             files = {"file": uploaded_pdf}
             try:
-                response = requests.post(f"{BACKEND_URL}/files/upload", files=files)
+                response = requests.post(f"{BACKEND_URL}/files/upload", files=files, timeout=120)
                 if response.status_code == 200:
                     result = response.json()
                     st.success(f"Archivo subido: {result['filename']} (ID: {result['file_id']})")
@@ -163,12 +207,12 @@ elif option == "📁 Gestionar archivos":
                     st.error(f"Error al subir archivo: {response.text}")
             except Exception as e:
                 st.error(f"Error de conexión: {e}")
-    
+
     # Listar archivos
     st.write("#### Archivos almacenados")
     if st.button("Actualizar lista"):
         try:
-            response = requests.get(f"{BACKEND_URL}/files/list")
+            response = requests.get(f"{BACKEND_URL}/files/list", timeout=120)
             if response.status_code == 200:
                 files = response.json()
                 if files:
@@ -182,16 +226,20 @@ elif option == "📁 Gestionar archivos":
                             st.write(f"Tamaño: {file_info['file_size']} bytes")
                         with col3:
                             if st.button("Descargar", key=f"download_{file_info['file_id']}"):
-                                download_response = requests.get(f"{BACKEND_URL}/files/download/{file_info['file_id']}")
+                                download_response = requests.get(
+                                    f"{BACKEND_URL}/files/download/{file_info['file_id']}", timeout=120
+                                )
                                 if download_response.status_code == 200:
                                     st.download_button(
                                         label="Descargar PDF",
                                         data=download_response.content,
                                         file_name=file_info['filename'],
-                                        mime="application/pdf"
+                                        mime="application/pdf",
                                     )
                             if st.button("Eliminar", key=f"delete_{file_info['file_id']}"):
-                                delete_response = requests.delete(f"{BACKEND_URL}/files/delete/{file_info['file_id']}")
+                                delete_response = requests.delete(
+                                    f"{BACKEND_URL}/files/delete/{file_info['file_id']}", timeout=120
+                                )
                                 if delete_response.status_code == 200:
                                     st.success("Archivo eliminado")
                                     st.rerun()
@@ -203,5 +251,3 @@ elif option == "📁 Gestionar archivos":
                 st.error(f"Error al obtener archivos: {response.text}")
         except Exception as e:
             st.error(f"Error de conexión: {e}")
-
-

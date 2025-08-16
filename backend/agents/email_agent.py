@@ -9,9 +9,11 @@ from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 import psycopg
+from config import DB_URL_LOCAL
 from langchain.memory import ConversationBufferMemory
 from utils.db_chat_history import SQLAlchemyChatMessageHistory
-from utils.db_actions import insert_chat_session
+from models.db import ChatSession
+from utils.db_connection import SessionLocal
 from uuid import uuid4
 
 nest_asyncio.apply()
@@ -39,27 +41,24 @@ Mensaje del usuario:
 # Prompt para ejecutar herramienta de email
 EXECUTE_EMAIL_PROMPT = """Eres un asistente especializado en redacción y gestión de correos electrónicos profesionales.
 
+ENTRADA:
+- Input del usuario junto con la información recuperada {input_block}
+
 TAREA:
-Generar una respuesta útil basada en la herramienta seleccionada y el resultado obtenido.
+- Presentar únicamente el resultado del envío de correo.
+- Si el correo fue enviado con éxito: muestra el texto final enviado al destinatario, de forma clara y sin encabezados como "To" o "Subject".
+- Si el envío falló: explica brevemente el error y, si aplica, indica cómo corregirlo.
+- No respondas ni expliques preguntas adicionales que el usuario haya hecho fuera del contenido del correo.
+- No inventes información que no haya sido incluida en el correo.
+- No incluyas frases como "El borrador del correo es" o "El correo que redacté es"; muestra directamente el contenido final.
 
-REGLAS IMPORTANTES:
-• Si se usó draft_and_send_email: Presenta el correo redactado de forma clara y profesional
-• Menciona si fue enviado exitosamente
-• Mantén un tono profesional y útil
-• No uses tildes en español, escribe todo sin acentos
-• Estructura la respuesta de forma clara y organizada
-• NO repitas información innecesariamente
-• NO dupliques contenido del correo
-• NO repitas frases o párrafos completos
-• Escribe cada idea UNA SOLA VEZ
-
-FORMATO DE RESPUESTA:
-1. Confirmar que el correo fue enviado
-2. Mostrar el contenido del correo de forma clara
-3. No repetir información
-
-Genera una respuesta natural y útil:"""
-
+REGLAS:
+• Mantén un tono profesional.
+• No uses tildes en español (acentos).
+• No generes explicaciones sobre temas ajenos al correo.
+• Si el remitente no incluyó su nombre, no lo agregues en el saludo.
+• La respuesta debe ser únicamente sobre el correo y su estado de envío.
+"""
 async def get_available_tools():
     try:
         async with sse_client(f"{MCP_SERVER_URL}/sse") as (read_stream, write_stream):
@@ -91,35 +90,38 @@ def get_chat_memory(session_id: str):
     try:
         # Usar directamente DB_URL_LOCAL que ya está en formato SQLAlchemy
         # No necesitamos convertir a psycopg ya que SQLAlchemyChatMessageHistory usa SQLAlchemy
-        history = SQLAlchemyChatMessageHistory(session_id=session_id)
+        
+        history = SQLAlchemyChatMessageHistory(session_id=session_id,persist=False)
         return ConversationBufferMemory(
             chat_memory=history,
             return_messages=True
         )
+        
     except Exception as e:
         print(f"[Email Agent] Error en get_chat_memory: {e}")
         # Fallback: retornar memoria sin persistencia
         return ConversationBufferMemory(return_messages=True)
 
-
-
-def clean_duplicate_content(text: str) -> str:
-    """Elimina contenido duplicado en el texto"""
-    if not text:
-        return text
-    
-    # Dividir por líneas y eliminar duplicados consecutivos
-    lines = text.split('\n')
-    cleaned_lines = []
-    prev_line = None
-    
-    for line in lines:
-        line = line.strip()
-        if line and line != prev_line:
-            cleaned_lines.append(line)
-            prev_line = line
-    
-    return '\n'.join(cleaned_lines)
+def insert_chat_session(session_id: str):
+    """Inserta una nueva sesión en la tabla chat_sessions"""
+    try:
+        db = SessionLocal()
+        # Verificar si la sesión ya existe
+        existing_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        
+        if not existing_session:
+            new_session = ChatSession(id=session_id)
+            db.add(new_session)
+            db.commit()
+            print(f"[Email Agent] Nueva sesión creada: {session_id}")
+        else:
+            print(f"[Email Agent] Sesión ya existe: {session_id}")
+        
+        db.close()
+    except Exception as e:
+        print(f"[Email Agent] Error insertando sesión: {e}")
+        if db:
+            db.close()
 
 def email_agent_node(state):
     try:
@@ -160,7 +162,7 @@ def email_agent_node(state):
                 # Extraer información básica del mensaje del usuario
                 # Puedes hacer esto más sofisticado con regex o NLP
                 args = {
-                    "from_person": "usuario@ejemplo.com",  # Esto debería venir del contexto del usuario
+                    "from_person": session_id,  # Esto debería venir del contexto del usuario
                     "subject": "Consulta profesional",     # Esto se puede extraer o generar
                     "body": user_input
                 }
@@ -187,26 +189,15 @@ def email_agent_node(state):
             ("user", "{input_block}")
         ])
         input_block = f"Input del usuario: {user_input}\n\nResultado de la herramienta: {tool_result}"
-
-        # Usar LLMChain sin memoria para evitar duplicaciones
-        reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt)
-        final_output = reasoning_chain.invoke({"input_block": input_block})
+        reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt, memory=memory)
         
-        # Extraer solo el texto de la respuesta
+        # CORRECCIÓN: usar invoke() y extraer 'text'
+        final_output = reasoning_chain.invoke({"input_block": input_block})
+        # Robusto: si es string (primera vez), lo usamos directo; si es dict, sacamos solo el texto generado
         if isinstance(final_output, dict):
             final_response = final_output.get("text", str(final_output))
         else:
-            final_response = str(final_output)
-        
-        # Limpiar la respuesta para evitar duplicaciones
-        final_response = final_response.strip()
-        
-        # Aplicar limpieza de duplicados
-        final_response = clean_duplicate_content(final_response)
-        
-        # Debug: mostrar la respuesta antes de procesar
-        print(f"[Email Agent] Respuesta del LLM (raw): {final_response[:200]}...")
-        print(f"[Email Agent] Respuesta del LLM (cleaned): {final_response[:200]}...")
+            final_response = final_output
         
         # Agregar respuesta al historial de mensajes
         messages.append({
@@ -244,7 +235,7 @@ def email_agent_node(state):
         }
 
 # Test local
-def test_email_agent(query="Hola, quiero escribir un correo al soporte por un problema con la factura, pero no se como redactarlo bien."):
+def test_email_agent(query="Hola, quiero escribir un correo al soporte por un problema con la factura me llamo Nicolas Bonelli y mi mail es nico.bonellidelhoyo@gmail.com . Tambien te queria consultar que son los KPIS?"):
     """Función para probar el agente Email independientemente"""
     print(f"Testing Email Agent with query: {query}")
     print("-" * 60)
@@ -253,7 +244,7 @@ def test_email_agent(query="Hola, quiero escribir un correo al soporte por un pr
     session_id = "39105cb8-ba8c-40c6-aaf7-dd8571b605e0"
     
     # Insertar sesión en la base de datos
-    insert_chat_session(session_id)
+    #insert_chat_session(session_id)
     
     # Simular estado como en LangGraph
     test_state = {
@@ -317,8 +308,10 @@ if __name__ == "__main__":
     print("="*80)
     
     # Test básico
-    test_email_agent("Quiero redactar un correo para reportar un bug en la aplicación")
+    test_email_agent()
     
+    # Tests múltiples escenarios
+    #test_multiple_scenarios()
     
     print("\n" + "="*80)
     print("TESTS COMPLETADOS")

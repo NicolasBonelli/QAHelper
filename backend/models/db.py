@@ -1,7 +1,12 @@
-from sqlalchemy import Column, Integer, Text, String, TIMESTAMP, UUID, ForeignKey, func
-from pgvector.sqlalchemy import Vector  # <-- IMPORT CORRECTO
-from utils.db_connection import Base  # <-- Usá la ruta real a Base
+import sys
+sys.path.append("..")
 
+from sqlalchemy import Column, Integer, Text, String, TIMESTAMP, UUID, ForeignKey, func
+from pgvector.sqlalchemy import Vector
+from sqlalchemy.ext.declarative import declarative_base
+
+# Crear una nueva base declarativa para este módulo
+Base = declarative_base()
 
 class DocumentEmbedding(Base):
     __tablename__ = "document_embeddings"

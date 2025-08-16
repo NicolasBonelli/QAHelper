@@ -1,5 +1,8 @@
-from utils.db_connection import SessionLocal
-from models.db import DocumentEmbedding, ChatSession, ChatMessage
+import sys
+sys.path.append("..")
+
+from backend.utils.db_connection import SessionLocal
+from backend.models.db import DocumentEmbedding, ChatSession, ChatMessage
 from llama_index.core import VectorStoreIndex, Document
 from llama_index.core.schema import Node
 import numpy as np

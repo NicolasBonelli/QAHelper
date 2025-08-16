@@ -1,11 +1,13 @@
+import sys
+sys.path.append("..")
 from llama_index.core import Document
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core import VectorStoreIndex
-from utils.db_actions import  create_index_from_pg, save_chunks_to_db
-from utils.db_connection import SessionLocal
-from models.db import DocumentEmbedding
+from .db_actions import  create_index_from_pg, save_chunks_to_db
+from .db_connection import SessionLocal
+from backend.models.db import DocumentEmbedding
 import uuid
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity

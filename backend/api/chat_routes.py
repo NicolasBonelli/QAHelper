@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from supervisor.graph_builder import app as graph_app
 from models.api import ChatRequest, ChatResponse
-from utils.db_actions import insert_chat_session
+from utils.db_actions import insert_chat_session, save_message
 
 router = APIRouter(prefix="/chat", tags=["Chat Agent"])
 
@@ -24,16 +24,18 @@ def send_message(request: ChatRequest):
             "input": request.message,
             "session_id": session_id
         }
-        
+        save_message(session_id, "human", request.message)
         # Agregar contexto si se proporciona
         if request.context:
             state.update(request.context)
         
         # Invocar el grafo del agente
         result = graph_app.invoke(state)
-        
+        print("!!!!!RESULT!!!")
+        print(result)
+
         return ChatResponse(
-            response=result.get("output", "No se pudo generar una respuesta"),
+            response=result.get("final_output", "No se pudo generar una respuesta"),
             session_id=session_id,
             timestamp=datetime.now().isoformat(),
             context=result.get("context")
