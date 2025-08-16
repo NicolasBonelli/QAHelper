@@ -6,6 +6,10 @@ import base64
 import requests
 import os
 from dotenv import load_dotenv
+import pdfplumber
+import io
+
+from backend.tasks import process_local_file
 
 load_dotenv(override=True)
 BACKEND_URL = os.getenv('BACKEND_URL')
@@ -18,6 +22,14 @@ AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 S3_BUCKET = os.getenv("BUCKET_NAME")
 
 # ------------------------------ Utilidades ------------------------------
+
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    all_text = ""
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        for i, page in enumerate(pdf.pages, start=1):
+            text = page.extract_text() or ""
+            all_text += f"\n--- Página {i} ---\n{text}"
+    return all_text
 
 def image_to_base64(image: Image.Image) -> str:
     """Convierte imagen PIL a base64 para enviar a Gemini"""
@@ -141,49 +153,32 @@ if option == "🤖 Ir al chat":
 
 # ------------------------------ CARGAR DOCUMENTO ------------------------------
 elif option == "📄 Cargar documento":
-    poppler_path = r'C:\\Users\\hecto\\Downloads\\Release-24.08.0-0\\poppler-24.08.0\\Library\\bin'
     uploaded_file = st.file_uploader("Subí un PDF de soporte", type=["pdf"])
     if uploaded_file is not None:
-        st.info("Convirtiendo PDF en imágenes…")
-        images = convert_from_bytes(uploaded_file.read(), poppler_path=poppler_path)
+        st.info("Extrayendo texto del PDF…")
+        pdf_bytes = uploaded_file.read()
 
-        all_text = ""
-        for i, image in enumerate(images):
-            st.image(image, caption=f"Página {i+1}", use_container_width=True)
-
-            st.write(f"🧠 Enviando página {i+1} a Gemini…")
-            texto = pedir_a_gemini(image)
-            all_text += f"\n--- Página {i+1} ---\n{texto}"
+        all_text = extract_text_from_pdf(pdf_bytes)
 
         st.success("Texto extraído del PDF:")
         st.text_area("Texto completo del documento", all_text, height=400)
 
-        # Subir a S3 usando la nueva API
+        os.makedirs("storage", exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"faq_{timestamp}"
-
-        s3_data = {"text": all_text, "filename": filename, "bucket": S3_BUCKET}
+        filename = f"faq_{timestamp}.txt"
+        file_path = os.path.join("storage", filename)
 
         try:
-            response = requests.post(f"{BACKEND_URL}/s3/upload", json=s3_data, timeout=120)
-            if response.status_code == 200:
-                result = response.json()
-                st.success(f"Texto subido a S3 correctamente. Key: {result['key']}")
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(all_text)
 
-                # Procesar el archivo
-                process_data = {"bucket": result["bucket"], "key": result["key"]}
-
-                process_response = requests.post(
-                    f"{BACKEND_URL}/s3/process", json=process_data, timeout=120
-                )
-                if process_response.status_code == 200:
-                    st.success("Tarea enviada para procesar el archivo.")
-                else:
-                    st.error(f"Error al enviar tarea: {process_response.text}")
-            else:
-                st.error(f"Error al subir a S3: {response.text}")
+            st.success(f"Texto guardado en: {file_path}")
         except Exception as e:
-            st.error(f"Error de conexión al backend: {e}")
+            st.error(f"Error al guardar archivo: {e}")
+            
+        # Enviar tarea a Celery
+        process_local_file.delay(file_path)
+        st.success("Tarea enviada para procesar el archivo.")
 
 # ------------------------------ GESTIONAR ARCHIVOS ------------------------------
 elif option == "📁 Gestionar archivos":

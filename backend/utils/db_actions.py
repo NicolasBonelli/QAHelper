@@ -53,33 +53,73 @@ def save_message(session_id: str, role: str, message: str):
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import Settings, StorageContext, load_index_from_storage, VectorStoreIndex
 from llama_index.vector_stores.postgres import PGVectorStore  # integración LlamaIndex
-# otras importaciones tuyas siguen igual...
 
-# 1) configurar el modelo de embeddings globalmente (Settings)
-embed_model = HuggingFaceEmbedding(model_name="intfloat/e5-base-v2")
-Settings.embed_model = embed_model
+# Lazy initialization of embedding model to avoid import-time failures
+_embed_model = None
+_vector_store = None
 
-# 2) crear el vector store (ajusta params a tu version/tabla)
-vector_store = PGVectorStore.from_params(
-    database="qahelper",
-    host="localhost",
-    user="postgres",
-    password="postgres",
-    port=5432,
-    table_name="document_embeddings",  # tu tabla
-    embed_dim=768,
-)
+def get_embed_model():
+    """Lazy load the embedding model only when needed"""
+    global _embed_model
+    if _embed_model is None:
+        try:
+            print("🔄 Loading embedding model...")
+            _embed_model = HuggingFaceEmbedding(model_name="intfloat/e5-base-v2")
+            print("✅ Embedding model loaded successfully")
+        except Exception as e:
+            print(f"❌ Error loading embedding model: {e}")
+            # Fallback to a simpler model or raise the error
+            raise e
+    return _embed_model
+
+def get_vector_store():
+    """Lazy load the vector store only when needed"""
+    global _vector_store
+    if _vector_store is None:
+        try:
+            print("🔄 Initializing vector store...")
+            _vector_store = PGVectorStore.from_params(
+                database="qahelper",
+                host="localhost",
+                user="postgres",
+                password="postgres",
+                port=5432,
+                table_name="document_embeddings",  # tu tabla
+                embed_dim=768,
+            )
+            print("✅ Vector store initialized successfully")
+        except Exception as e:
+            print(f"❌ Error initializing vector store: {e}")
+            raise e
+    return _vector_store
+
+# Configure settings when needed
+def configure_settings():
+    """Configure LlamaIndex settings when needed"""
+    try:
+        embed_model = get_embed_model()
+        Settings.embed_model = embed_model
+        print("✅ Settings configured successfully")
+    except Exception as e:
+        print(f"❌ Error configuring settings: {e}")
+        raise e
+
 from llama_index.core import Document
 from llama_index.core.schema import TextNode
 
 def load_chunks_into_vectorstore():
     db = SessionLocal()
     try:
+        # Configure settings before using
+        configure_settings()
+        
         chunks = db.query(DocumentEmbedding).all()
         nodes = []
         for chunk in chunks:
             node = TextNode(text=chunk.text, id_=chunk.chunk_id, embedding=np.array(chunk.embedding))
             nodes.append(node)
+        
+        vector_store = get_vector_store()
         index = VectorStoreIndex(nodes, storage_context=StorageContext.from_defaults(vector_store=vector_store))
         return index
     finally:
@@ -87,11 +127,13 @@ def load_chunks_into_vectorstore():
 
         
 def create_index_from_pg():
-
-    index = load_chunks_into_vectorstore()
-    print("✅ Índice cargado desde storage_context")
-
-    return index
+    try:
+        index = load_chunks_into_vectorstore()
+        print("✅ Índice cargado desde storage_context")
+        return index
+    except Exception as e:
+        print(f"❌ Error creating index: {e}")
+        raise e
 
 def insert_chat_session(session_id: str):
     """Inserta una nueva sesión en la tabla chat_sessions"""

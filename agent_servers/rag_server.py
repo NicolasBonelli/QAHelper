@@ -14,7 +14,6 @@ load_dotenv(override=True)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from backend.utils.llamaindex_utils import retrieve_chunks
-load_dotenv(override=True)
 MODEL = os.getenv("MODEL")
 
 mcp = FastMCP(

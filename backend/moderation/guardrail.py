@@ -91,6 +91,57 @@ TRANSLATION_PROMPT = ChatPromptTemplate.from_messages([
     ("human", "Traduce: {english_response}")
 ])
 
+def extract_spanish_response(response_text: str) -> str:
+    """
+    Extrae la respuesta en español del JSON o devuelve texto plano si no es JSON válido.
+    Siempre intenta devolver solo la respuesta en español, nunca el JSON completo.
+    """
+    if not response_text:
+        return "Lo siento, no pude generar una respuesta."
+    
+    try:
+        import json
+        import re
+        
+        # Limpiar markdown code blocks si existen
+        cleaned_response = re.sub(r'```json\s*', '', response_text)
+        cleaned_response = re.sub(r'\s*```', '', cleaned_response)
+        cleaned_response = cleaned_response.strip()
+        
+        # Intentar parsear como JSON
+        response_data = json.loads(cleaned_response)
+        
+        # Extraer respuesta en español
+        spanish_response = response_data.get("final_response_es", "")
+        if spanish_response:
+            return spanish_response
+            
+        # Si no hay respuesta en español, intentar la inglesa como fallback
+        english_response = response_data.get("final_response_en", "")
+        if english_response:
+            return english_response
+            
+        # Si el JSON no tiene las claves esperadas, devolver mensaje de error
+        return "Lo siento, hubo un problema al procesar la respuesta."
+        
+    except json.JSONDecodeError:
+        # Si no es JSON válido, intentar extraer texto plano útil
+        # Buscar patrones comunes de respuesta
+        lines = response_text.split('\n')
+        for line in lines:
+            line = line.strip()
+            # Evitar devolver líneas que parezcan JSON incompleto
+            if line and not line.startswith('{') and not line.startswith('"') and not line.endswith('}'):
+                if len(line) > 10:  # Asegurar que sea una respuesta sustancial
+                    return line
+        
+        # Si no encuentra texto útil, devolver mensaje de error
+        return "Lo siento, hubo un problema al procesar la respuesta."
+        
+    except Exception as e:
+        print(f"[Guardrail] Error inesperado en extract_spanish_response: {e}")
+        return "Lo siento, hubo un problema al procesar la respuesta."
+
 def format_conversation_history(messages: list) -> str:
     if not messages:
         return "No hay historial de conversación disponible."
@@ -176,9 +227,6 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
         final_response = response_text['content']
 
     # Paso 2: Validar respuesta en inglés con toxic_guard
-    english_response = ""
-    spanish_response = ""
-    
     try:
         # Extraer respuesta en inglés del JSON
         import json
@@ -195,13 +243,14 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
         # Validar inglés con toxic_guard
         try:
             toxic_guard.validate(english_response)
-            final_validated_response = spanish_response  # Respuesta válida, usar español
+            # Respuesta válida, usar la respuesta en español extraída correctamente
+            final_validated_response = extract_spanish_response(final_response)
         except Exception as toxic_error:
             print(f"⚠️ Contenido tóxico detectado: {toxic_error}")
             # Paso 3: Generar traducción con advertencia
             if not english_response:
                 print("[Guardrail] Respuesta en inglés vacía, usando respuesta original")
-                final_validated_response = spanish_response or final_response
+                final_validated_response = extract_spanish_response(final_response)
             else:
                 formatted_translation_prompt = TRANSLATION_PROMPT.format(english_response=english_response)
                 translated_response = llm.run(formatted_translation_prompt)
@@ -210,11 +259,12 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
     except json.JSONDecodeError as json_error:
         print(f"Error parsing JSON: {json_error}")
         print(f"Response was: {final_response}")
-        # Si no se puede parsear el JSON, usar la respuesta original
-        final_validated_response = final_response
+        # CORREGIDO: Usar extract_spanish_response en lugar de final_response
+        final_validated_response = extract_spanish_response(final_response)
     except Exception as e:
         print(f"Error inesperado: {e}")
-        final_validated_response = final_response
+        # CORREGIDO: Usar extract_spanish_response en lugar de final_response
+        final_validated_response = extract_spanish_response(final_response)
 
     # Paso 4: Actualizar estado
     updated_messages = messages.copy()

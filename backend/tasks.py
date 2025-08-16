@@ -2,13 +2,15 @@ from celery import Celery
 import boto3
 import os
 from dotenv import load_dotenv
-from utils.llamaindex_utils import chunk_faq_recursive
-from utils.db_actions import save_chunks_to_db
+from .utils.llamaindex_utils import chunk_faq_recursive
+from .celery_config import CELERY_CONFIG
 import uuid
 
-load_dotenv()
+load_dotenv(override=True)
 
-celery_app = Celery("tasks", broker=os.getenv("RABBITMQ_BROKER"))
+# Initialize Celery with platform-specific configuration
+celery_app = Celery("tasks")
+celery_app.config_from_object(CELERY_CONFIG)
 
 @celery_app.task
 def process_s3_file(bucket, key):
@@ -21,10 +23,27 @@ def process_s3_file(bucket, key):
     content = response["Body"].read().decode("utf-8")
     print(f"✅ Texto procesado:\n{content[:200]}...")
 
-    chunks = chunk_faq_recursive(content)
-    print(f"✅ Chunks generados: {len(chunks)}")
+    # chunk_faq_recursive already handles saving chunks to the database
+    doc_id = chunk_faq_recursive(content)
+    print(f"✅ Procesamiento completado con doc_id: {doc_id}")
 
-    doc_id = str(uuid.uuid4())  # ID único del documento
-    print(f"📥 Guardando chunks en PostgreSQL con doc_id = {doc_id}...")
-    save_chunks_to_db(chunks, doc_id)
-    print("✅ Chunks guardados con éxito.")
+ 
+
+
+
+
+
+@celery_app.task
+def process_local_file(file_path):
+    if not os.path.exists(file_path):
+        print(f"❌ Archivo no encontrado: {file_path}")
+        return
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    print(f"✅ Texto procesado:\n{content[:200]}...")
+
+    # chunk_faq_recursive already handles saving chunks to the database
+    doc_id = chunk_faq_recursive(content)
+    print(f"✅ Procesamiento completado con doc_id: {doc_id}")
