@@ -9,8 +9,8 @@ from guardrails import Guard
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.memory import ConversationBufferMemory
-from utils.db_chat_history import SQLAlchemyChatMessageHistory
-from utils.db_actions import save_message
+from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
+from backend.utils.db_actions import save_message
 
 load_dotenv(override=True)
 

@@ -9,9 +9,9 @@ from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from langchain.memory import ConversationBufferMemory
-from utils.db_chat_history import SQLAlchemyChatMessageHistory
-from models.db import ChatSession
-from utils.db_connection import SessionLocal
+from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
+from backend.models.db import ChatSession
+from backend.utils.db_connection import SessionLocal
 
 nest_asyncio.apply()
 load_dotenv(override=True)

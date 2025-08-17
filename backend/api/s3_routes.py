@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET_NAME
-from utils.s3_utils import upload_text_to_s3
-from tasks import process_s3_file
-from models.api import S3ProcessRequest, S3UploadRequest
+from backend.api.config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, S3_BUCKET_NAME
+from backend.utils.s3_utils import upload_text_to_s3
+from backend.tasks import process_s3_file
+from backend.models.api import S3ProcessRequest, S3UploadRequest
 router = APIRouter(prefix="/s3", tags=["S3 Operations"])
 
 @router.post("/upload")

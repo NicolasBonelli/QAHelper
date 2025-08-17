@@ -7,7 +7,7 @@ import shutil
 from datetime import datetime
 import uuid
 from pathlib import Path
-from models.api import FileUploadResponse, FileInfo
+from backend.models.api import FileUploadResponse, FileInfo
 router = APIRouter(prefix="/files", tags=["File Management"])
 
 from config import PDF_STORAGE_DIR

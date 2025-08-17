@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from langchain.memory import ConversationBufferMemory
-from utils.db_chat_history import SQLAlchemyChatMessageHistory
-from utils.db_actions import insert_chat_session
+from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
+from backend.utils.db_actions import insert_chat_session
 import logging
 
 logger = logging.getLogger(__name__)

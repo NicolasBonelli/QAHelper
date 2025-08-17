@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
 from sqlalchemy.sql import text
-from utils.db_connection import Base, engine
+from backend.utils.db_connection import Base, engine
 
 
 # Import routers

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 import uuid
 from datetime import datetime
-from supervisor.graph_builder import app as graph_app
-from models.api import ChatRequest, ChatResponse
-from utils.db_actions import insert_chat_session, save_message
+from backend.supervisor.graph_builder import app as graph_app
+from backend.models.api import ChatRequest, ChatResponse
+from backend.utils.db_actions import insert_chat_session, save_message
 
 router = APIRouter(prefix="/chat", tags=["Chat Agent"])
 

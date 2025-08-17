@@ -2,7 +2,7 @@ import os
 from typing import TypedDict
 from typing import List
 from langgraph.graph import StateGraph
-from utils.db_actions import save_message
+from backend.utils.db_actions import save_message
 # LangGraph expects a dict as state
 # These are the following keys
 # - input: user text
@@ -27,7 +27,7 @@ class State(TypedDict):
     executed_agents: List[str]  # Array with executed agents history
 
 # Supervisor node that evaluates agent response and decides next step
-from supervisor.agent_supervisor import classify_with_gemini, supervise_agent_response
+from backend.supervisor.agent_supervisor import classify_with_gemini, supervise_agent_response
 
 def supervisor_node(state):
     """
@@ -108,16 +108,16 @@ def finalize_output(state):
     }
 
 
-from agents.rag_agent import rag_agent_node
-from agents.sentiment_agent import sentiment_agent_node
-from agents.email_agent import email_agent_node
-from agents.tech_agent import tech_agent_node
+from backend.agents.rag_agent import rag_agent_node
+from backend.agents.sentiment_agent import sentiment_agent_node
+from backend.agents.email_agent import email_agent_node
+from backend.agents.tech_agent import tech_agent_node
 
 # Graph construction
 builder = StateGraph(State)
 
 
-from moderation.guardrail import apply_toxic_guardrail_and_store
+from backend.moderation.guardrail import apply_toxic_guardrail_and_store
 
 def guardrail_node(state: dict) -> dict:
     """

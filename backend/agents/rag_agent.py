@@ -9,7 +9,7 @@ from mcp.client.sse import sse_client
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
-from utils.db_chat_history import SQLAlchemyChatMessageHistory
+from backend.utils.db_chat_history import SQLAlchemyChatMessageHistory
 import logging
 
 logger = logging.getLogger(__name__)
