@@ -14,16 +14,13 @@ from utils.db_actions import save_message
 
 load_dotenv(override=True)
 
-# ======================
-# Configuración del LLM
-# ======================
 MODEL = os.getenv("MODEL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Validar configuración
+# Validate configuration
 if not MODEL:
     print("[Guardrail] ERROR: Variable MODEL no configurada")
-    MODEL = "gemini-1.5-flash"  # Valor por defecto
+    MODEL = "gemini-1.5-flash"  # Default Value
 
 if not GEMINI_API_KEY:
     print("[Guardrail] ERROR: Variable GEMINI_API_KEY no configurada")
@@ -34,16 +31,12 @@ print(f"[Guardrail] API Key configurada: {'Sí' if GEMINI_API_KEY else 'No'}")
 
 llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0.0, google_api_key=GEMINI_API_KEY)
 
-# ======================
-# Guard de toxicidad (del toxic_guardrail.py)
-# ======================
+
 toxic_guard = Guard().use(ToxicLanguage, threshold=0.9, validation_method="sentence", on_fail="exception")
 
-# ======================
-# Función get_chat_memory (igual que en otros agentes)
-# ======================
+
 def get_chat_memory(session_id: str):
-    """Devuelve la memoria basada en historial en PostgreSQL"""
+    """Returns memory based on PostgreSQL history"""
     try:
         history = SQLAlchemyChatMessageHistory(session_id=session_id, persist=False)
         return ConversationBufferMemory(
@@ -52,12 +45,10 @@ def get_chat_memory(session_id: str):
         )
     except Exception as e:
         print(f"[Guardrail] Error en get_chat_memory: {e}")
-        # Fallback: retornar memoria sin persistencia
+        # Fallback: return memory without persistence
         return ConversationBufferMemory(return_messages=True)
 
-# ======================
-# Prompt de LangChain (del guardrail2.py)
-# ======================
+
 FINAL_RESPONSE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", 
      "Eres un asistente experto y amigable que debe generar una respuesta final natural y conversacional "
@@ -85,7 +76,7 @@ FINAL_RESPONSE_PROMPT = ChatPromptTemplate.from_messages([
      "HISTORIAL:\n{conversation_history}\n\n"
      "Mensaje original del usuario: {original_input}")
 ])
-# Prompt para traducción con advertencia
+
 TRANSLATION_PROMPT = ChatPromptTemplate.from_messages([
     ("system", "Traduce al español la siguiente respuesta en inglés, añadiendo una advertencia al inicio: '⚠️ ADVERTENCIA: La respuesta original contenía lenguaje inapropiado y ha sido filtrada.'"),
     ("human", "Traduce: {english_response}")
@@ -93,8 +84,8 @@ TRANSLATION_PROMPT = ChatPromptTemplate.from_messages([
 
 def extract_spanish_response(response_text: str) -> str:
     """
-    Extrae la respuesta en español del JSON o devuelve texto plano si no es JSON válido.
-    Siempre intenta devolver solo la respuesta en español, nunca el JSON completo.
+    Extracts the Spanish response from the JSON or returns plain text if not valid JSON.
+    Always tries to return only the Spanish response, never the complete JSON.
     """
     if not response_text:
         return "Lo siento, no pude generar una respuesta."
@@ -103,39 +94,37 @@ def extract_spanish_response(response_text: str) -> str:
         import json
         import re
         
-        # Limpiar markdown code blocks si existen
+        # Clean markdown code blocks if they exist
         cleaned_response = re.sub(r'```json\s*', '', response_text)
         cleaned_response = re.sub(r'\s*```', '', cleaned_response)
         cleaned_response = cleaned_response.strip()
         
-        # Intentar parsear como JSON
+        # Try to parse as JSON
         response_data = json.loads(cleaned_response)
         
-        # Extraer respuesta en español
+        # Extract Spanish response
         spanish_response = response_data.get("final_response_es", "")
         if spanish_response:
             return spanish_response
             
-        # Si no hay respuesta en español, intentar la inglesa como fallback
+        # If there's no Spanish response, try English as fallback
         english_response = response_data.get("final_response_en", "")
         if english_response:
             return english_response
             
-        # Si el JSON no tiene las claves esperadas, devolver mensaje de error
+        # If the JSON Doesnt have the required keys
         return "Lo siento, hubo un problema al procesar la respuesta."
         
     except json.JSONDecodeError:
-        # Si no es JSON válido, intentar extraer texto plano útil
-        # Buscar patrones comunes de respuesta
+        
         lines = response_text.split('\n')
         for line in lines:
             line = line.strip()
-            # Evitar devolver líneas que parezcan JSON incompleto
+            # Avoid returning lines that look like incomplete JSON
             if line and not line.startswith('{') and not line.startswith('"') and not line.endswith('}'):
-                if len(line) > 10:  # Asegurar que sea una respuesta sustancial
+                if len(line) > 10:  
                     return line
         
-        # Si no encuentra texto útil, devolver mensaje de error
         return "Lo siento, hubo un problema al procesar la respuesta."
         
     except Exception as e:
@@ -146,7 +135,7 @@ def format_conversation_history(messages: list) -> str:
     if not messages:
         return "No hay historial de conversación disponible."
     
-    # Eliminar mensajes duplicados basándose en contenido y agente
+    # Remove duplicate messages based on content and agent
     seen_messages = set()
     unique_messages = []
     
@@ -155,8 +144,8 @@ def format_conversation_history(messages: list) -> str:
         content = msg.get("content", "")
         agent = msg.get("agent", "")
         
-        # Crear una clave única para identificar duplicados
-        message_key = f"{role}:{agent}:{content[:100]}"  # Primeros 100 caracteres
+        # Create a unique key to identify duplicates
+        message_key = f"{role}:{agent}:{content[:100]}"  
         
         if message_key not in seen_messages:
             seen_messages.add(message_key)
@@ -185,20 +174,16 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
     if not session_id or not messages:
         return state
 
-    # Paso 1: Generar respuesta final con LangChain usando memoria de PostgreSQL
     obtain_history = format_conversation_history(messages)
     memory = get_chat_memory(session_id)
     
-    # Validar que los parámetros no estén vacíos
+    # Validate that parameters are not empty
     if not user_input or not obtain_history:
         print(f"[Guardrail] Parámetros vacíos - user_input: '{user_input}', obtain_history: '{obtain_history}'")
         return state
     
     print(f"[Guardrail] Llamando a Gemini con - user_input: '{user_input[:100]}...', history_length: {len(obtain_history)}")
     
-    # Usar LLMChain con memoria para mantener contexto
-    from langchain.chains import LLMChain
-
     from langchain.schema.runnable import RunnablePassthrough
 
     final_response_chain = (
@@ -212,27 +197,24 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
         "original_input": user_input
     })
 
-
-    print("Ya llame y tengo el responseeeeeeeeeeeeeeeee")
-    # Extraer el texto de la respuesta
     if isinstance(response_text, dict) and "text" in response_text:
         final_response = response_text["text"]
     else:
         final_response = str(response_text)
     
-    # Extraer solo el contenido si es un objeto de respuesta de LangChain
+    # Extract only content if it's a LangChain response object
     if hasattr(response_text, 'content'):
         final_response = response_text.content
     elif isinstance(response_text, dict) and 'content' in response_text:
         final_response = response_text['content']
 
-    # Paso 2: Validar respuesta en inglés con toxic_guard
+    # Validate English response with toxic_guard
     try:
-        # Extraer respuesta en inglés del JSON
+        # Extract English response from JSON
         import json
         import re
         
-        # Limpiar markdown code blocks si existen
+        # Clean markdown code blocks if they exist
         cleaned_response = re.sub(r'```json\s*', '', final_response)
         cleaned_response = re.sub(r'\s*```', '', cleaned_response)
         
@@ -240,16 +222,15 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
         english_response = response_data.get("final_response_en", "")
         spanish_response = response_data.get("final_response_es", "")
         
-        # Validar inglés con toxic_guard
+        # Validate English with toxic_guard
         try:
             toxic_guard.validate(english_response)
-            # Respuesta válida, usar la respuesta en español extraída correctamente
             final_validated_response = extract_spanish_response(final_response)
         except Exception as toxic_error:
             print(f"⚠️ Contenido tóxico detectado: {toxic_error}")
-            # Paso 3: Generar traducción con advertencia
+            
             if not english_response:
-                print("[Guardrail] Respuesta en inglés vacía, usando respuesta original")
+                
                 final_validated_response = extract_spanish_response(final_response)
             else:
                 formatted_translation_prompt = TRANSLATION_PROMPT.format(english_response=english_response)
@@ -259,14 +240,12 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
     except json.JSONDecodeError as json_error:
         print(f"Error parsing JSON: {json_error}")
         print(f"Response was: {final_response}")
-        # CORREGIDO: Usar extract_spanish_response en lugar de final_response
         final_validated_response = extract_spanish_response(final_response)
     except Exception as e:
-        print(f"Error inesperado: {e}")
-        # CORREGIDO: Usar extract_spanish_response en lugar de final_response
+        print(f"Unexpected error: {e}")
         final_validated_response = extract_spanish_response(final_response)
 
-    # Paso 4: Actualizar estado
+    
     updated_messages = messages.copy()
     updated_messages.append({
         "role": "system",
@@ -285,7 +264,7 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
     }
 
 # ======================
-# Test rápido
+# Quick test
 # ======================
 if __name__ == "__main__":
     test_state = {

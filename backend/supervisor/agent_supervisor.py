@@ -6,10 +6,10 @@ import os
 load_dotenv(override=True)
 
 MODEL= os.getenv("MODEL")
-# Inicializar LLM de Gemini
+
 llm = ChatGoogleGenerativeAI(model=MODEL, temperature=0,google_api_key=os.getenv("GEMINI_API_KEY"))
 
-# Mapeo de intenciones
+# Intent mapping
 AGENT_MAP = {
     "consulta_documento": "rag_agent",
     "analisis_sentimiento": "sentiment_agent",
@@ -19,7 +19,7 @@ AGENT_MAP = {
 }
 
 
-# Prompt estructurado para clasificación inicial
+# Structured prompt for initial classification
 initial_prompt = ChatPromptTemplate.from_messages([
     ("system", 
      "Sos un agente que debe clasificar mensajes de usuarios en una de las siguientes tareas basándote en las herramientas disponibles:\n\n"
@@ -91,13 +91,13 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
 ])
 
 
-# Cadenas LangChain
+# LangChain chains
 classification_chain = LLMChain(llm=llm, prompt=initial_prompt)
 supervisor_chain = LLMChain(llm=llm, prompt=supervisor_prompt)
 
 def classify_with_gemini(user_input: str) -> str:
     """
-    Clasificación inicial del mensaje del usuario para determinar el primer agente
+    Initial classification of user message to determine the first agent
     """
     try:
         result = classification_chain.run(user_input=user_input).strip()
@@ -108,12 +108,11 @@ def classify_with_gemini(user_input: str) -> str:
 
 def supervise_agent_response(original_input: str, current_agent: str, agent_response: str, messages: list = None, executed_agents: list = None) -> str:
     """
-    Función de supervisión que decide el siguiente paso después de que un agente complete su tarea
-    Ahora recibe el historial completo de mensajes y agentes ejecutados para tomar decisiones más inteligentes
+    Supervision function that decides the next step after an agent completes its task
+    Now receives the complete message history and executed agents to make more intelligent decisions
     """
     try:
-        print("Entre a supervisor agentttttttt")
-        # Formatear el historial de conversación para el prompt
+    
         conversation_history = ""
         if messages:
             conversation_history = "\n".join([
@@ -121,7 +120,7 @@ def supervise_agent_response(original_input: str, current_agent: str, agent_resp
                 for msg in messages
             ])
         
-        # Formatear la lista de agentes ejecutados
+        
         executed_agents_str = ", ".join(executed_agents) if executed_agents else "ninguno"
         
         print("Conversation history: ", conversation_history)
@@ -136,7 +135,7 @@ def supervise_agent_response(original_input: str, current_agent: str, agent_resp
             executed_agents=executed_agents_str
         ).strip()
         print("Result: ", result)
-        # Validar que el resultado sea válido
+        # Validate that the result is valid
         valid_options = ["guardrail", "rag_agent", "sentiment_agent", "email_agent", "tech_agent"]
         if result in valid_options:
             return result
@@ -146,4 +145,5 @@ def supervise_agent_response(original_input: str, current_agent: str, agent_resp
             
     except Exception as e:
         print("[Error en supervise_agent_response]:", e)
-        return "guardrail"  # Por defecto ir al guardrail en caso de error
+        return "guardrail" 
+    

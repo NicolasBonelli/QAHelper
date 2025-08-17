@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get upgrade -y && apt-get clean
 
-# Copia el requirements.txt desde la raíz del proyecto
+# Copy requirements.txt from project root
 COPY ../requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt

@@ -2,13 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import os
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
 from sqlalchemy.sql import text
 from utils.db_connection import Base, engine
 
 
-# Importar routers
+# Import routers
 from backend.api.s3_routes import router as s3_router
 from backend.api.chat_routes import router as chat_router
 from backend.api.files_routes import router as files_router
@@ -19,19 +17,19 @@ from backend.api.config import (
     HOST, PORT
 )
 
-# Configuración de la base de datos
-print("🛠️ Habilitando extensión vector en la base...")
+# Database configuration
+print("🛠️ Enabling vector extension in database...")
 with engine.connect() as connection:
     connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
     connection.commit()
-print("✅ Extensión vector habilitada.")
+print("✅ Vector extension enabled.")
 
-# Crear las tablas en la base si no existen
-print("🛠️ Creando tablas en la base...")
+# Create tables in database if they don't exist
+print("🛠️ Creating tables in database...")
 Base.metadata.create_all(bind=engine)
-print("✅ Tablas creadas con éxito.")
+print("✅ Tables created successfully.")
 
-# Crear aplicación FastAPI
+
 app = FastAPI(
     title=API_TITLE,
     description=API_DESCRIPTION,
@@ -40,7 +38,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configurar CORS
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -49,7 +47,7 @@ app.add_middleware(
     allow_headers=CORS_ALLOW_HEADERS,
 )
 
-# Incluir routers
+
 app.include_router(s3_router)
 app.include_router(chat_router)
 app.include_router(files_router)
@@ -57,7 +55,7 @@ app.include_router(files_router)
 @app.get("/")
 async def root():
     """
-    Endpoint raíz de la API
+    API root endpoint
     """
     return {
         "message": "QAHelper API - Sistema de soporte inteligente",
@@ -69,7 +67,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """
-    Endpoint de verificación de salud general del sistema
+    General system health verification endpoint
     """
     return {
         "status": "healthy",
@@ -80,7 +78,7 @@ async def health_check():
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """
-    Manejador global de excepciones
+    Global exception handler
     """
     return JSONResponse(
         status_code=500,

@@ -10,26 +10,26 @@ router = APIRouter(prefix="/chat", tags=["Chat Agent"])
 @router.post("/send", response_model=ChatResponse)
 def send_message(request: ChatRequest):
     """
-    Envía un mensaje al agente de chat y recibe una respuesta
+    Sends a message to the chat agent and receives a response
     """
     try:
-        # Generar session_id si no se proporciona
+        # Generate session_id if not provided
         session_id = request.session_id or str(uuid.uuid4())
         
-        # Insertar la sesión en la base de datos antes de procesar
+        # Insert the session into the database before processing
         insert_chat_session(session_id)
         
-        # Preparar el estado para el grafo
+        # Prepare the state for the graph
         state = {
             "input": request.message,
             "session_id": session_id
         }
         save_message(session_id, "human", request.message)
-        # Agregar contexto si se proporciona
+        # Add context if provided
         if request.context:
             state.update(request.context)
         
-        # Invocar el grafo del agente
+        # Invoke the agent graph
         result = graph_app.invoke(state)
         print("!!!!!RESULT!!!")
         print(result)
@@ -48,10 +48,10 @@ def send_message(request: ChatRequest):
 @router.delete("/session/{session_id}")
 async def delete_session(session_id: str):
     """
-    Elimina una sesión de chat
+    Deletes a chat session
     """
     try:
-        # Logica para borrar sesion
+        # Logic to delete session
         return {
             "session_id": session_id,
             "status": "deleted",
@@ -63,7 +63,7 @@ async def delete_session(session_id: str):
 @router.get("/health")
 async def chat_health_check():
     """
-    Verifica el estado del servicio de chat
+    Verifies the status of the chat service
     """
     try:
         return {
