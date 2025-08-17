@@ -1,7 +1,13 @@
 from sqlalchemy import create_engine
 from sqlalchemy.sql import text
-from backend.config import DB_URL_LOCAL
-from backend.models.db import Base, DocumentEmbedding
+try:
+    from backend.config import DB_URL_LOCAL
+except ModuleNotFoundError:
+    from config import DB_URL_LOCAL  # type: ignore
+try:
+    from backend.models.db import Base, DocumentEmbedding
+except ModuleNotFoundError:
+    from models.db import Base, DocumentEmbedding  # type: ignore
 
 # Enable the pgvector extension
 print("🛠️ Enabling vector extension in database...")

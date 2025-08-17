@@ -7,8 +7,8 @@ import os
 from unittest.mock import Mock, patch, MagicMock
 import asyncio
 
-# Agregar el directorio raíz al path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# Agregar el directorio raíz al inicio del sys.path para priorizar el paquete local 'backend'
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from backend.supervisor.graph_builder import app
 from backend.supervisor.agent_supervisor import classify_with_gemini, supervise_agent_response
