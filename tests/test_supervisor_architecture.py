@@ -294,3 +294,85 @@ class TestSupervisorPerformance:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ------------------------------
+# E2E con servidor Sentiment MCP
+# ------------------------------
+
+import subprocess
+import socket
+import time
+from fastapi.testclient import TestClient
+
+
+def _wait_for_port(host: str, port: int, timeout_seconds: int = 20):
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(1.0)
+            try:
+                sock.connect((host, port))
+                return True
+            except Exception:
+                time.sleep(0.5)
+    return False
+
+
+@pytest.mark.integration
+def test_end_to_end_chat_with_sentiment_server(monkeypatch):
+    """
+    E2E: levanta el servidor MCP de Sentiment, fuerza la clasificacion al agente de sentimiento,
+    simula el LLM para no depender de APIs externas y ejerce el endpoint /chat/send del backend.
+    """
+    import os
+
+    # 1) Arrancar servidor MCP Sentiment en background
+    os.environ["MCP_SENTIMENT_SERVER_URL"] = "http://127.0.0.1:8080"
+    sentiment_proc = subprocess.Popen(["python", "-m", "agent_servers.sentiment_server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        assert _wait_for_port("127.0.0.1", 8080, timeout_seconds=30), "Sentiment MCP server no arranco a tiempo"
+
+        # 2) Mockear clasificacion del supervisor para ir directo a sentiment_agent
+        monkeypatch.setattr(
+            "backend.supervisor.agent_supervisor.classify_with_gemini",
+            lambda user_input: "sentiment_agent",
+        )
+
+        # 3) Mockear cadena LLM del sentiment_agent (seleccion de tool y respuesta final)
+        class FakeChain:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def run(self, *args, **kwargs):
+                return "Action: calm_down_user"
+
+            def invoke(self, *args, **kwargs):
+                return "respuesta simulada sin tildes"
+
+        monkeypatch.setattr("backend.agents.sentiment_agent.LLMChain", FakeChain)
+
+        # 4) Opcional: evitar loops, devolver guardrail tras ejecutar sentiment
+        monkeypatch.setattr(
+            "backend.supervisor.agent_supervisor.supervise_agent_response",
+            lambda original_input, current_agent, agent_response, messages=None, executed_agents=None: "guardrail",
+        )
+
+        # 5) Invocar API del backend con TestClient
+        from backend.main import app as fastapi_app
+
+        client = TestClient(fastapi_app)
+        payload = {"message": "esta app es una mierda", "session_id": "e2e-test-session"}
+        resp = client.post("/chat/send", json=payload)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data.get("response"), str) and len(data["response"]) > 0
+        assert data.get("session_id") == "e2e-test-session"
+
+    finally:
+        try:
+            sentiment_proc.terminate()
+            sentiment_proc.wait(timeout=10)
+        except Exception:
+            sentiment_proc.kill()

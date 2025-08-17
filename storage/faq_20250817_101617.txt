@@ -1,0 +1,277 @@
+
+--- Página 1 ---
+Preguntas Frecuentes sobre NeuroNova
+AI
+1. ¿Qué productos ofrece NeuroNova AI?
+Contamos con tres líneas principales: un motor de análisis predictivo, un chatbot de
+atención al cliente y una plataforma de automatización de procesos.
+2. ¿Dónde está ubicada la empresa?
+Nuestra sede principal está en Buenos Aires, pero trabajamos 100% remoto con
+colaboradores en Chile, México y España.
+3. ¿Cómo surgió la idea de NeuroNova AI?
+Nació en plena pandemia, cuando detectamos la necesidad de que pequeñas
+empresas pudieran usar IA sin depender de grandes corporaciones.
+4. ¿Qué los diferencia de otras startups de IA?
+Nos enfocamos en explicabilidad de modelos, de modo que el cliente entiende cómo
+se toman las decisiones.
+5. ¿Con qué sectores trabajan más?
+Principalmente retail, salud y educación, aunque también exploramos fintech y agro.
+6. ¿Ofrecen servicios de consultoría además de productos?
+Sí, tenemos un equipo de data scientists que asesora a empresas para diseñar
+pipelines de datos y entrenar modelos propios.
+7. ¿Qué tipo de IA usan en sus chatbots?
+Combinamos modelos de lenguaje propios con LLMs de terceros para balancear
+costos y precisión.
+8. ¿Sus sistemas cumplen con normativas de privacidad?
+Cumplimos con GDPR, CCPA y la Ley de Protección de Datos Personales de
+Argentina.
+9. ¿Cuánto tarda un proyecto promedio en implementarse?
+Depende del tamaño, pero los MVP suelen estar listos en 4 a 6 semanas.
+10. ¿Puedo probar su software antes de contratarlo?
+Sí, ofrecemos una prueba gratuita de 14 días con funcionalidades limitadas.
+11. ¿Qué tan escalables son sus soluciones?
+Nuestras soluciones están diseñadas para escalar desde pequeñas startups hasta
+grandes corporaciones, con infraestructura en la nube adaptable.
+--- Página 2 ---
+12. ¿Ofrecen soporte técnico 24/7?
+Sí, contamos con soporte técnico global disponible 24/7 para clientes con planes
+premium.
+13. ¿Qué tecnologías usan en su motor de análisis predictivo?
+Utilizamos algoritmos de machine learning como redes neuronales, árboles de
+decisión y modelos bayesianos, optimizados para cada caso.
+14. ¿Pueden personalizar sus chatbots para necesidades específicas?
+Absolutamente, ofrecemos personalización completa para adaptar los chatbots a
+flujos de trabajo específicos de cada cliente.
+15. ¿Qué experiencia tienen en el sector salud?
+Hemos implementado soluciones de IA para optimizar diagnósticos, gestionar
+registros médicos y predecir tendencias de pacientes.
+16. ¿Cómo garantizan la seguridad de los datos?
+Usamos encriptación AES-256, autenticación multifactor y auditorías regulares para
+proteger la información de nuestros clientes.
+17. ¿Qué tan fácil es integrar sus productos con sistemas existentes?
+Nuestras soluciones son compatibles con APIs estándar y plataformas como
+Salesforce, SAP y Microsoft Dynamics.
+18. ¿Ofrecen formación para usar sus herramientas?
+Sí, proporcionamos capacitaciones personalizadas y documentación detallada para
+todos nuestros clientes.
+19. ¿Qué tan a menudo actualizan sus productos?
+Lanzamos actualizaciones trimestrales con mejoras de rendimiento y nuevas
+funcionalidades basadas en feedback de clientes.
+20. ¿Trabajan con startups o solo con grandes empresas?
+Trabajamos con empresas de todos los tamaños, con precios y soluciones
+adaptadas a cada etapa de crecimiento.
+21. ¿Qué tipo de soporte ofrecen durante la implementación?
+Asignamos un equipo dedicado de project managers y técnicos para garantizar una
+implementación fluida.
+22. ¿Sus chatbots pueden operar en múltiples idiomas?
+Sí, soportamos más de 20 idiomas, con traducción en tiempo real y adaptaciones
+culturales.
+23. ¿Cómo manejan los datos sensibles en el sector financiero?
+Cumplimos con normativas como PCI-DSS y usamos anonimización de datos para
+proteger la privacidad.
+--- Página 3 ---
+24. ¿Qué tan personalizable es su plataforma de automatización?
+Es totalmente modular, permitiendo a los clientes elegir y configurar flujos según sus
+necesidades específicas.
+25. ¿Qué métricas de rendimiento ofrecen sus productos?
+Proporcionamos dashboards en tiempo real con KPIs como tiempo de respuesta,
+precisión predictiva y satisfacción del cliente.
+26. ¿Pueden sus soluciones operar offline?
+Algunas funcionalidades pueden configurarse para uso offline, aunque la mayoría
+requieren conexión a la nube.
+27. ¿Qué tan rápido pueden escalar sus servidores?
+Nuestra infraestructura en la nube permite escalar recursos en minutos, según la
+demanda del cliente.
+28. ¿Ofrecen descuentos para organizaciones sin fines de lucro?
+Sí, ofrecemos planes con descuentos del 30% para ONGs y proyectos educativos.
+29. ¿Cómo manejan los errores en sus modelos de IA?
+Usamos técnicas de validación cruzada y monitoreo continuo para minimizar errores
+y mejorar la precisión.
+30. ¿Qué experiencia tienen en el sector educativo?
+Hemos desarrollado sistemas de tutoría inteligente y análisis predictivo para mejorar
+el rendimiento académico.
+31. ¿Sus chatbots pueden integrarse con redes sociales?
+Sí, se integran con plataformas como WhatsApp, Telegram y Facebook Messenger.
+32. ¿Qué tan accesibles son sus precios para pequeñas empresas?
+Ofrecemos planes flexibles con precios escalonados, empezando desde $50 al mes
+para startups.
+33. ¿Cómo miden la satisfacción del cliente?
+Usamos encuestas NPS y análisis de feedback directo para evaluar y mejorar la
+experiencia del cliente.
+34. ¿Qué tan robusta es su infraestructura en la nube?
+Trabajamos con AWS y Azure, con un uptime garantizado del 99.9%.
+35. ¿Ofrecen soporte para integración con CRMs?
+Sí, tenemos conectores preconfigurados para CRMs populares y ofrecemos
+integración personalizada.
+36. ¿Qué tan rápido responden sus chatbots?
+Nuestros chatbots tienen un tiempo de respuesta promedio de 0.5 segundos.
+--- Página 4 ---
+37. ¿Pueden sus modelos de IA aprender en tiempo real?
+Sí, ofrecemos aprendizaje continuo opcional, dependiendo de las necesidades del
+cliente.
+38. ¿Qué tan transparente es su proceso de desarrollo?
+Proporcionamos reportes regulares y acceso a nuestro roadmap para clientes
+interesados.
+39. ¿Trabajan con clientes internacionales?
+Sí, más del 40% de nuestros clientes están fuera de Argentina, principalmente en
+Europa y América Latina.
+40. ¿Qué tan personal es su servicio de consultoría?
+Asignamos consultores dedicados que trabajan directamente con el cliente para
+entender sus necesidades.
+41. ¿Qué herramientas usan para visualización de datos?
+Integramos herramientas como Power BI, Tableau y nuestra propia solución de
+visualización.
+42. ¿Sus sistemas soportan análisis en tiempo real?
+Sí, nuestro motor predictivo puede procesar datos en tiempo real para decisiones
+inmediatas.
+43. ¿Ofrecen planes de mantenimiento para sus productos?
+Sí, ofrecemos contratos de mantenimiento con actualizaciones y soporte técnico
+continuo.
+44. ¿Qué tan intuitiva es la interfaz de sus productos?
+Diseñamos interfaces centradas en el usuario, con feedback de usabilidad de
+clientes reales.
+45. ¿Pueden sus chatbots manejar conversaciones complejas?
+Sí, usamos modelos avanzados de NLP para gestionar diálogos contextuales y
+multi-turno.
+46. ¿Qué experiencia tienen en el sector fintech?
+Hemos trabajado en detección de fraudes y optimización de procesos de pago para
+bancos y startups.
+47. ¿Cómo aseguran la calidad de sus modelos de IA?
+Realizamos pruebas A/B y auditorías internas antes de cada despliegue.
+48. ¿Qué tan flexible es su plataforma de automatización?
+Permite automatizar desde tareas simples hasta flujos de trabajo empresariales
+complejos.
+--- Página 5 ---
+49. ¿Ofrecen soporte en español?
+Sí, nuestro soporte está disponible en español, inglés y portugués.
+50. ¿Qué tan rápido pueden personalizar un producto?
+Las personalizaciones básicas se entregan en 1-2 semanas, dependiendo de la
+complejidad.
+51. ¿Qué tipo de datos necesitan para entrenar sus modelos?
+Trabajamos con datos estructurados y no estructurados, desde CSV hasta bases de
+datos SQL.
+52. ¿Sus soluciones son compatibles con dispositivos móviles?
+Sí, todos nuestros productos tienen interfaces optimizadas para móviles.
+53. ¿Qué tan seguido realizan auditorías de seguridad?
+Realizamos auditorías trimestrales y pruebas de penetración anuales.
+54. ¿Pueden sus chatbots aprender del feedback del usuario?
+Sí, implementamos retroalimentación activa para mejorar las respuestas con el
+tiempo.
+55. ¿Qué experiencia tienen en el sector agro?
+Hemos desarrollado modelos predictivos para optimizar cultivos y gestionar recursos
+hídricos.
+56. ¿Ofrecen integración con herramientas de marketing?
+Sí, integramos con plataformas como HubSpot y Mailchimp para campañas
+automatizadas.
+57. ¿Qué tan confiables son sus predicciones?
+Nuestros modelos tienen una precisión promedio del 85%, dependiendo del caso de
+uso.
+58. ¿Pueden sus sistemas manejar grandes volúmenes de datos?
+Sí, están diseñados para procesar terabytes de datos con baja latencia.
+59. ¿Qué tan fácil es migrar datos a su plataforma?
+Ofrecemos herramientas de migración automatizada y soporte dedicado para el
+proceso.
+60. ¿Ofrecen descuentos por contratos a largo plazo?
+Sí, ofrecemos hasta un 20% de descuento en contratos de 12 meses o más.
+61. ¿Qué tan personalizable es el motor de análisis predictivo?
+Permite ajustar variables, métricas y algoritmos según las necesidades del cliente.
+--- Página 6 ---
+62. ¿Sus chatbots pueden integrarse con sistemas de voz?
+Sí, soportamos integración con asistentes de voz como Alexa y Google Assistant.
+63. ¿Qué tan robusto es su sistema de backups?
+Realizamos backups diarios con redundancia en múltiples regiones geográficas.
+64. ¿Ofrecen APIs para desarrolladores?
+Sí, proporcionamos APIs RESTful con documentación completa para integraciones.
+65. ¿Qué tan a menudo capacitan a su equipo?
+Nuestro equipo recibe formación mensual sobre nuevas tecnologías y mejores
+prácticas.
+66. ¿Pueden sus soluciones predecir tendencias de mercado?
+Sí, nuestro motor predictivo analiza datos históricos y en tiempo real para identificar
+tendencias.
+67. ¿Qué tan accesibles son sus productos para usuarios no técnicos?
+Diseñamos interfaces intuitivas y ofrecemos soporte para usuarios sin experiencia
+técnica.
+68. ¿Qué experiencia tienen en retail?
+Hemos optimizado inventarios, predicción de demanda y personalización de ofertas
+para minoristas.
+69. ¿Ofrecen soporte para migración desde otras plataformas de IA?
+Sí, tenemos experiencia migrando clientes desde otras soluciones de IA con mínima
+interrupción.
+70. ¿Qué tan rápido pueden implementar un chatbot?
+Un chatbot básico puede estar operativo en 1-2 semanas.
+71. ¿Sus sistemas soportan análisis de sentimientos?
+Sí, nuestros chatbots y motores predictivos incluyen análisis de sentimientos
+avanzado.
+72. ¿Qué tan segura es su plataforma de automatización?
+Usamos autenticación de dos factores y encriptación de extremo a extremo.
+73. ¿Pueden sus modelos predecir comportamientos de clientes?
+Sí, analizamos patrones de compra y comportamiento para predicciones
+personalizadas.
+74. ¿Ofrecen soporte para integración con ERPs?
+Sí, integramos con ERPs como Oracle NetSuite y Odoo.
+--- Página 7 ---
+75. ¿Qué tan escalable es su equipo de consultoría?
+Podemos asignar equipos de 2 a 20 consultores según el tamaño del proyecto.
+76. ¿Sus chatbots pueden manejar picos de tráfico?
+Sí, están diseñados para manejar miles de interacciones simultáneas sin
+degradación.
+77. ¿Qué tan actualizados están sus modelos de IA?
+Los actualizamos mensualmente con nuevos datos y avances en investigación.
+78. ¿Ofrecen soluciones para e-commerce?
+Sí, ofrecemos herramientas para personalización de productos y optimización de
+carritos.
+79. ¿Qué tan transparente es su modelo de precios?
+Publicamos todos nuestros precios en nuestra web y ofrecemos cotizaciones
+personalizadas.
+80. ¿Pueden sus sistemas integrarse con IoT?
+Sí, soportamos integración con dispositivos IoT para análisis en tiempo real.
+81. ¿Qué experiencia tienen en ciberseguridad?
+Hemos desarrollado sistemas de detección de amenazas basados en IA para
+empresas tecnológicas.
+82. ¿Qué tan rápida es su atención al cliente?
+Respondemos consultas en menos de 2 horas en días hábiles.
+83. ¿Ofrecen soluciones para recursos humanos?
+Sí, tenemos herramientas para automatizar reclutamiento y análisis de desempeño.
+84. ¿Qué tan flexible es su contrato de servicios?
+Ofrecemos contratos mensuales, trimestrales y anuales con cláusulas de
+cancelación flexible.
+85. ¿Pueden sus modelos predecir fallos en maquinaria?
+Sí, usamos mantenimiento predictivo para detectar fallos antes de que ocurran.
+86. ¿Qué tan fácil es usar su documentación técnica?
+Nuestra documentación está diseñada para ser clara, con ejemplos prácticos y guías
+paso a paso.
+87. ¿Ofrecen soporte para análisis de big data?
+Sí, procesamos grandes volúmenes de datos con herramientas como Hadoop y
+Spark.
+--- Página 8 ---
+88. ¿Qué tan personalizable es su dashboard?
+Los dashboards son completamente configurables para mostrar métricas relevantes.
+89. ¿Pueden sus chatbots integrarse con sistemas de ticketing?
+Sí, integramos con plataformas como Zendesk y Freshdesk.
+90. ¿Qué tan robusto es su sistema de monitoreo?
+Monitoreamos el rendimiento en tiempo real con alertas automáticas para
+anomalías.
+91. ¿Ofrecen soluciones para logística?
+Sí, optimizamos rutas y gestionamos inventarios en tiempo real.
+92. ¿Qué tan rápida es la configuración inicial?
+La configuración inicial toma entre 1 y 3 días, dependiendo del producto.
+93. ¿Pueden sus sistemas manejar datos no estructurados?
+Sí, procesamos texto, imágenes y audio con técnicas de deep learning.
+94. ¿Qué tan accesible es su equipo de soporte?
+Disponible por email, chat y teléfono, con tiempos de respuesta garantizados.
+95. ¿Ofrecen soluciones para pequeñas clínicas?
+Sí, tenemos herramientas para gestionar citas y registros médicos en clínicas
+pequeñas.
+96. ¿Qué tan robusta es su API?
+Nuestra API soporta miles de solicitudes por segundo con alta disponibilidad.
+97. ¿Pueden sus chatbots manejar interacciones por voz?
+Sí, ofrecemos soporte para interacciones por voz con reconocimiento de lenguaje
+natural.
+98. ¿Qué experiencia tienen en sostenibilidad?
+Hemos desarrollado modelos para optimizar el uso de recursos en proyectos
+sostenibles.
+99. ¿Ofrecen descuentos para proyectos educativos?
+Sí, ofrecemos descuentos del 25% para instituciones educativas acreditadas.
+100. ¿Qué planes tienen para el futuro de NeuroNova AI?
+Planeamos expandirnos a Asia y desarrollar nuevos modelos de IA generativa para
+2026.
