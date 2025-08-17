@@ -213,7 +213,6 @@ def apply_toxic_guardrail_and_store(state: dict) -> dict:
     })
 
 
-    print("Ya llame y tengo el responseeeeeeeeeeeeeeeee")
     # Extraer el texto de la respuesta
     if isinstance(response_text, dict) and "text" in response_text:
         final_response = response_text["text"]

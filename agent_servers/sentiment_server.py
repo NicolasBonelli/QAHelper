@@ -1,16 +1,12 @@
 from fastmcp import FastMCP
-from fastapi import APIRouter
-from pydantic import BaseModel
-from fastapi import FastAPI
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 from langsmith import traceable
-
+import logging
 # Load environment variables
 load_dotenv(override=True)
 
-# Configuración MCP
 mcp = FastMCP(
     name="sentiment_agent",
     instructions="Servidor MCP con herramientas de gestión emocional del usuario.",
@@ -18,12 +14,12 @@ mcp = FastMCP(
     port=8080
 )
 
-# Modelo LLM with fallback values
+# LLM Model with fallback values
 model_name = os.getenv("MODEL", "gemini-pro")
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    print("Warning: GEMINI_API_KEY not found in environment variables")
+    logging.warning("Warning: GEMINI_API_KEY not found in environment variables")
     # Create a mock LLM for testing purposes
     class MockLLM:
         def invoke(self, prompt):

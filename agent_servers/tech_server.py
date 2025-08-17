@@ -1,7 +1,4 @@
 from fastmcp import FastMCP
-from fastapi import APIRouter
-from pydantic import BaseModel
-from fastapi import FastAPI
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 import pandas as pd
@@ -10,14 +7,11 @@ from dotenv import load_dotenv
 import logging
 from langsmith import traceable
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
 load_dotenv()
 
-# Configuración MCP
 mcp = FastMCP(
     name="tech_agent",
     instructions="Servidor MCP con herramientas de ejecución de tareas técnicas como generación de archivos y procesamiento de datos.",
@@ -25,13 +19,11 @@ mcp = FastMCP(
     port=8060
 )
 
-# Modelo LLM with fallback values
 model_name = os.getenv("MODEL", "gemini-pro")
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
     logger.warning("GEMINI_API_KEY not found in environment variables")
-    # Create a mock LLM for testing purposes
     class MockLLM:
         def invoke(self, prompt):
             class MockResponse:
@@ -80,11 +72,9 @@ def generate_excel_from_data(tabla: str) -> str:
             return "Error: El módulo 'openpyxl' no está instalado. Ejecuta: pip install openpyxl"
         
         df = pd.read_csv(StringIO(tabla))
-        # Obtener el directorio del proyecto (un nivel arriba de agent_servers)
         project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         output_dir = os.path.join(project_dir, "output")
         
-        # Crear la carpeta output si no existe
         os.makedirs(output_dir, exist_ok=True)
         
         filename = os.path.join(output_dir, "output.xlsx")

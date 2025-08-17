@@ -10,7 +10,6 @@ from email.utils import formataddr
 
 load_dotenv(override=True)
 
-# Configuración MCP
 mcp = FastMCP(
     name="email_agent",
     instructions="Servidor MCP con herramientas para redacción, envío y análisis de correos electrónicos.",
@@ -18,15 +17,13 @@ mcp = FastMCP(
     port=8070
 )
 
-# Modelo LLM para redactar
 llm = ChatGoogleGenerativeAI(
     model=os.getenv("MODEL"),
     temperature=0,
     google_api_key=os.getenv("GEMINI_API_KEY")
 )
 
-DEFAULT_DESTINATION = "nico-bonellidelhoyo@hotmail.com"  # Aquí tu destino fijo
-
+DEFAULT_DESTINATION = os.getenv("DEFAULT_EMAIL_DESTINATION", "default@company.com")
 @mcp.tool
 @traceable(run_type="tool", name="draft_professional_email")
 def draft_and_send_email(from_person: str, subject: str, body: str, session_id: str = None) -> dict:
@@ -35,11 +32,9 @@ def draft_and_send_email(from_person: str, subject: str, body: str, session_id: 
     Si no hay nombre, usa el session_id como remitente.
     """
     try:
-        # Si no se especifica el nombre, usar session_id
         if not from_person or from_person.strip() == "":
             from_person = session_id if session_id else "Usuario"
 
-        # Prompt enfocado en resultado final, no en borradores ni instrucciones
         prompt = f"""
         Redacta un correo profesional, claro y cordial dirigido a la empresa.
 
@@ -61,7 +56,6 @@ def draft_and_send_email(from_person: str, subject: str, body: str, session_id: 
 
         drafted_body = llm.invoke(prompt).content.strip()
 
-        # Preparar mensaje para envío
         msg = MIMEMultipart()
         msg['From'] = formataddr((from_person, os.getenv("GMAIL_EMAIL")))
         msg['To'] = DEFAULT_DESTINATION
@@ -70,7 +64,6 @@ def draft_and_send_email(from_person: str, subject: str, body: str, session_id: 
 
         msg.attach(MIMEText(drafted_body, 'plain', 'utf-8'))
 
-        # Enviar correo automáticamente
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(os.getenv("GMAIL_EMAIL"), os.getenv("GMAIL_APP_PASSWORD"))

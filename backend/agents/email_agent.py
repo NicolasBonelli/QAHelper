@@ -8,16 +8,16 @@ import nest_asyncio
 from dotenv import load_dotenv
 from mcp import ClientSession
 from mcp.client.sse import sse_client
-import psycopg
-from config import DB_URL_LOCAL
 from langchain.memory import ConversationBufferMemory
 from utils.db_chat_history import SQLAlchemyChatMessageHistory
 from models.db import ChatSession
 from utils.db_connection import SessionLocal
-from uuid import uuid4
 
 nest_asyncio.apply()
 load_dotenv(override=True)
+import logging
+
+logger = logging.getLogger(__name__)
 
 MCP_SERVER_URL = os.getenv("MCP_EMAIL_SERVER_URL")
 MODEL = os.getenv("MODEL")
@@ -38,7 +38,6 @@ NO escribas nada más.
 Mensaje del usuario:
 {user_input}"""
 
-# Prompt para ejecutar herramienta de email
 EXECUTE_EMAIL_PROMPT = """Eres un asistente especializado en redacción y gestión de correos electrónicos profesionales.
 
 ENTRADA:
@@ -88,9 +87,7 @@ def get_tool_selection_chain(llm):
 def get_chat_memory(session_id: str):
     """Devuelve la memoria basada en historial en PostgreSQL"""
     try:
-        # Usar directamente DB_URL_LOCAL que ya está en formato SQLAlchemy
-        # No necesitamos convertir a psycopg ya que SQLAlchemyChatMessageHistory usa SQLAlchemy
-        
+
         history = SQLAlchemyChatMessageHistory(session_id=session_id,persist=False)
         return ConversationBufferMemory(
             chat_memory=history,
@@ -99,21 +96,18 @@ def get_chat_memory(session_id: str):
         
     except Exception as e:
         print(f"[Email Agent] Error en get_chat_memory: {e}")
-        # Fallback: retornar memoria sin persistencia
         return ConversationBufferMemory(return_messages=True)
 
 def insert_chat_session(session_id: str):
     """Inserta una nueva sesión en la tabla chat_sessions"""
     try:
         db = SessionLocal()
-        # Verificar si la sesión ya existe
         existing_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
         
         if not existing_session:
             new_session = ChatSession(id=session_id)
             db.add(new_session)
             db.commit()
-            print(f"[Email Agent] Nueva sesión creada: {session_id}")
         else:
             print(f"[Email Agent] Sesión ya existe: {session_id}")
         
@@ -126,21 +120,19 @@ def insert_chat_session(session_id: str):
 def email_agent_node(state):
     try:
         user_input = state.get("input", "")
-        session_id = state.get("session_id")  # asumimos que viene del front
+        session_id = state.get("session_id")
         messages = state.get("messages", [])
         executed_agents = state.get("executed_agents", [])
         
         if not user_input:
             return {"tool_response": "Error: No se recibió input del usuario."}
 
-        print(f"[Email Agent] Procesando: {user_input}")
-        print(f"[Email Agent] Agentes ejecutados previamente: {executed_agents}")
+        logger.info(f"[Email Agent] Procesando: {user_input}")
+        logger.info(f"[Email Agent] Agentes ejecutados previamente: {executed_agents}")
 
-        # Paso 1: Obtener herramientas
         try:
             tools = asyncio.run(get_available_tools())
             if not tools:
-                # Fallback si no se pueden obtener herramientas
                 print("[Email Agent] No se pudieron obtener herramientas, usando herramientas por defecto")
                 tools = [
                     {"name": "draft_and_send_email", "description": "Redacta y envia correo profesional via SMTP"},
@@ -148,32 +140,28 @@ def email_agent_node(state):
             
             tools_str = "\n".join([f"{t['name']}: {t['description']}" for t in tools])
             
-            # Paso 2: Usar LLMChain para decidir qué tool usar
             tool_selector = get_tool_selection_chain(llm)
             tool_decision = tool_selector.run(tools=tools_str, user_input=user_input).strip()
             tool_name_raw = tool_decision.strip()
             tool_name = tool_name_raw.replace("Action:", "").strip()
             
-            print(f"[Email Agent] Tool seleccionada: {tool_name}")
+            logger.info(f"[Email Agent] Tool seleccionada: {tool_name}")
 
-            # Paso 3: Ejecutar herramienta seleccionada con nuevos parámetros SMTP
-            # Argumentos actualizados para la función SMTP
+
             if tool_name == "draft_and_send_email":
-                # Extraer información básica del mensaje del usuario
-                # Puedes hacer esto más sofisticado con regex o NLP
+  
                 args = {
-                    "from_person": session_id,  # Esto debería venir del contexto del usuario
-                    "subject": "Consulta profesional",     # Esto se puede extraer o generar
+                    "from_person": session_id,  
+                    "subject": "Consulta profesional",     
                     "body": user_input
                 }
             else:
                 args = {"text": user_input}
 
             tool_result = asyncio.run(execute_tool(tool_name, args))
-            print(f"[Email Agent] Resultado de tool: {tool_result}")
+            logger.info(f"[Email Agent] Resultado de tool: {tool_result}")
         except Exception as e:
-            print(f"[Email Agent] Error obteniendo/ejecutando herramientas: {e}")
-            # Fallback con análisis simple
+            logger.info(f"[Email Agent] Error obteniendo/ejecutando herramientas: {e}")
             if "correo" in user_input.lower() or "email" in user_input.lower() or "redactar" in user_input.lower():
                 tool_name = "draft_and_send_email"
                 tool_result = "Análisis local realizado - Solicitud de redacción de correo detectada"
@@ -181,7 +169,6 @@ def email_agent_node(state):
                 tool_name = "draft_and_send_email"
                 tool_result = "Análisis local realizado - Procesando solicitud de email"
 
-        # Paso 4: Usar memoria de conversación y LLM para generar respuesta final
         memory = get_chat_memory(session_id)
 
         agent_prompt = ChatPromptTemplate.from_messages([
@@ -191,15 +178,12 @@ def email_agent_node(state):
         input_block = f"Input del usuario: {user_input}\n\nResultado de la herramienta: {tool_result}"
         reasoning_chain = LLMChain(llm=llm, prompt=agent_prompt, memory=memory)
         
-        # CORRECCIÓN: usar invoke() y extraer 'text'
         final_output = reasoning_chain.invoke({"input_block": input_block})
-        # Robusto: si es string (primera vez), lo usamos directo; si es dict, sacamos solo el texto generado
         if isinstance(final_output, dict):
             final_response = final_output.get("text", str(final_output))
         else:
             final_response = final_output
         
-        # Agregar respuesta al historial de mensajes
         messages.append({
             "role": "agent",
             "agent": "email_agent",
@@ -216,9 +200,8 @@ def email_agent_node(state):
 
     except Exception as e:
         error_msg = f"Error en email_agent_node: {str(e)}"
-        print(f"[Email Agent ERROR] {error_msg}")
+        logger.warning(f"[Email Agent ERROR] {error_msg}")
         
-        # Agregar error al historial
         messages = state.get("messages", [])
         messages.append({
             "role": "agent",
@@ -234,85 +217,4 @@ def email_agent_node(state):
             "executed_agents": state.get("executed_agents", [])
         }
 
-# Test local
-def test_email_agent(query="Hola, quiero escribir un correo al soporte por un problema con la factura me llamo Nicolas Bonelli y mi mail es nico.bonellidelhoyo@gmail.com . Tambien te queria consultar que son los KPIS?"):
-    """Función para probar el agente Email independientemente"""
-    print(f"Testing Email Agent with query: {query}")
-    print("-" * 60)
-    
-    # UUID específico para la sesión
-    session_id = "39105cb8-ba8c-40c6-aaf7-dd8571b605e0"
-    
-    # Insertar sesión en la base de datos
-    #insert_chat_session(session_id)
-    
-    # Simular estado como en LangGraph
-    test_state = {
-        "input": query, 
-        "session_id": session_id,
-        "messages": [],
-        "executed_agents": []
-    }
-    
-    result = email_agent_node(test_state)
-    
-    print("\n" + "="*60)
-    print("RESULTADO DEL TEST:")
-    print("="*60)
-    print(f"Tool Response: {result.get('tool_response', 'No response')}")
-    print(f"Current Agent: {result.get('current_agent', 'Unknown')}")
-    print(f"Messages Count: {len(result.get('messages', []))}")
-    print(f"Executed Agents: {result.get('executed_agents', [])}")
-    
-    # Mostrar el último mensaje si existe
-    messages = result.get('messages', [])
-    if messages:
-        last_message = messages[-1]
-        print(f"\nUltimo mensaje del agente:")
-        print(f"Role: {last_message.get('role')}")
-        print(f"Agent: {last_message.get('agent')}")
-        print(f"Content: {last_message.get('content')}")
-    
-    return result
 
-# Tests adicionales
-def test_multiple_scenarios():
-    """Prueba varios escenarios diferentes"""
-    scenarios = [
-        "Necesito redactar un email de queja por un producto defectuoso",
-        "Quiero enviar un correo formal solicitando información sobre precios",
-        "Ayudame a escribir un email de seguimiento para una reunión",
-        "Redacta un correo profesional para solicitar vacaciones"
-    ]
-    
-    print("\n" + "="*80)
-    print("TESTING MULTIPLE SCENARIOS")
-    print("="*80)
-    
-    for i, scenario in enumerate(scenarios, 1):
-        print(f"\n--- SCENARIO {i} ---")
-        print(f"Query: {scenario}")
-        
-        try:
-            result = test_email_agent(scenario)
-            status = "✅ SUCCESS" if result.get('tool_response') else "❌ FAILED"
-            print(f"Status: {status}")
-        except Exception as e:
-            print(f"Status: ❌ ERROR - {str(e)}")
-        
-        print("-" * 40)
-
-if __name__ == "__main__":
-    # Test principal
-    print("INICIANDO TESTS DEL EMAIL AGENT")
-    print("="*80)
-    
-    # Test básico
-    test_email_agent()
-    
-    # Tests múltiples escenarios
-    #test_multiple_scenarios()
-    
-    print("\n" + "="*80)
-    print("TESTS COMPLETADOS")
-    print("="*80)
