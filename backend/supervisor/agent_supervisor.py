@@ -3,6 +3,7 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
 import os
+from typing import List, Optional
 load_dotenv(override=True)
 
 MODEL= os.getenv("MODEL")
@@ -101,12 +102,18 @@ def classify_with_gemini(user_input: str) -> str:
     """
     try:
         result = classification_chain.run(user_input=user_input).strip()
-        return AGENT_MAP.get(result)
+        return AGENT_MAP.get(result, "rag_agent")
     except Exception as e:
         print("[Error en classify_with_gemini]:", e)
         return "rag_agent"
 
-def supervise_agent_response(original_input: str, current_agent: str, agent_response: str, messages: list = None, executed_agents: list = None) -> str:
+def supervise_agent_response(
+    original_input: str,
+    current_agent: str,
+    agent_response: str,
+    messages: Optional[List[dict]] = None,
+    executed_agents: Optional[List[str]] = None,
+) -> str:
     """
     Supervision function that decides the next step after an agent completes its task
     Now receives the complete message history and executed agents to make more intelligent decisions
