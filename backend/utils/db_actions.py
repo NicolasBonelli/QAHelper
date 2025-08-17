@@ -3,8 +3,7 @@ sys.path.append("..")
 
 from backend.utils.db_connection import SessionLocal
 from backend.models.db import DocumentEmbedding, ChatSession, ChatMessage
-from llama_index.core import VectorStoreIndex, Document
-from llama_index.core.schema import Node
+from llama_index.core import VectorStoreIndex
 import numpy as np
 
 def save_chunks_to_db(nodes, doc_id: str):
@@ -12,9 +11,9 @@ def save_chunks_to_db(nodes, doc_id: str):
     try:
         for node in nodes:
             if node.embedding is None:
-                print(f"❌ Nodo sin embedding: {node.text[:30]}...")
+                print(f"❌ Node without embedding: {node.text[:30]}...")
                 continue
-            print(f"✅ Guardando chunk: {node.node_id}")
+            print(f"✅ Saving chunk: {node.node_id}")
             chunk = DocumentEmbedding(
                 doc_id=doc_id,
                 chunk_id=node.node_id,
@@ -23,7 +22,7 @@ def save_chunks_to_db(nodes, doc_id: str):
             )
             db.add(chunk)
         db.commit()
-        print("✅ Commit realizado con éxito.")
+        print("✅ Commit successful.")
     except Exception as e:
         db.rollback()
         print(f"❌ Error: {e}")
@@ -34,7 +33,7 @@ def save_chunks_to_db(nodes, doc_id: str):
 def save_message(session_id: str, role: str, message: str):
     db = SessionLocal()
     try:
-        # Asegurar que exista la sesión
+        # Ensure session exists
         session = db.query(ChatSession).filter_by(id=session_id).first()
         if not session:
             session = ChatSession(id=session_id)
@@ -51,9 +50,8 @@ def save_message(session_id: str, role: str, message: str):
 
 
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.core import Settings, StorageContext, load_index_from_storage, VectorStoreIndex
-from llama_index.vector_stores.postgres import PGVectorStore  # integración LlamaIndex
-
+from llama_index.core import Settings, StorageContext, VectorStoreIndex
+from llama_index.vector_stores.postgres import PGVectorStore  
 # Lazy initialization of embedding model to avoid import-time failures
 _embed_model = None
 _vector_store = None
@@ -84,7 +82,7 @@ def get_vector_store():
                 user="postgres",
                 password="postgres",
                 port=5432,
-                table_name="document_embeddings",  # tu tabla
+                table_name="document_embeddings",  
                 embed_dim=768,
             )
             print("✅ Vector store initialized successfully")
@@ -129,30 +127,30 @@ def load_chunks_into_vectorstore():
 def create_index_from_pg():
     try:
         index = load_chunks_into_vectorstore()
-        print("✅ Índice cargado desde storage_context")
+        print("✅ Index loaded from storage_context")
         return index
     except Exception as e:
         print(f"❌ Error creating index: {e}")
         raise e
 
 def insert_chat_session(session_id: str):
-    """Inserta una nueva sesión en la tabla chat_sessions"""
+    """Inserts a new session into the chat_sessions table"""
     try:
         db = SessionLocal()
-        # Verificar si la sesión ya existe
+        # Check if session already exists
         existing_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
         
         if not existing_session:
             new_session = ChatSession(id=session_id)
             db.add(new_session)
             db.commit()
-            print(f"[DB Actions] Nueva sesión creada: {session_id}")
+            print(f"[DB Actions] New session created: {session_id}")
         else:
-            print(f"[DB Actions] Sesión ya existe: {session_id}")
+            print(f"[DB Actions] Session already exists: {session_id}")
         
         db.close()
     except Exception as e:
-        print(f"[DB Actions] Error insertando sesión: {e}")
+        print(f"[DB Actions] Error inserting session: {e}")
         if db:
             db.close()
 

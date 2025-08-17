@@ -12,10 +12,10 @@ class SQLAlchemyChatMessageHistory(BaseChatMessageHistory):
         self.db: Session = SessionLocal()
 
     def add_message(self, message):
-        """Agrega un mensaje al historial. Si persist=False, no guarda en DB."""
+        """Adds a message to the history. If persist=False, doesn't save to DB."""
         if not self.persist:
-            return  # Solo lo mantiene en memoria si usás ConversationBufferMemory
-        role = message.type  # "human" o "ai"
+            return  # Only keeps it in memory if you use ConversationBufferMemory
+        role = message.type  # "human" or "ai"
         content = message.content
 
         new_msg = ChatMessage(

@@ -5,7 +5,7 @@ from sqlalchemy import Column, Integer, Text, String, TIMESTAMP, UUID, ForeignKe
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.ext.declarative import declarative_base
 
-# Crear una nueva base declarativa para este módulo
+# Create a new declarative base for this module
 Base = declarative_base()
 
 class DocumentEmbedding(Base):
@@ -28,6 +28,6 @@ class ChatMessage(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     session_id = Column(UUID, ForeignKey("chat_sessions.id"), nullable=False)
-    role = Column(Text, nullable=False)  # 'user' o 'agent'
+    role = Column(Text, nullable=False)  # 'user' or 'ai'
     message = Column(Text, nullable=False)
     timestamp = Column(TIMESTAMP, server_default=func.now())

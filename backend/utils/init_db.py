@@ -3,20 +3,20 @@ from sqlalchemy.sql import text
 from backend.config import DB_URL_LOCAL
 from backend.models.db import Base, DocumentEmbedding
 
-# Habilitar la extensión pgvector
-print("🛠️ Habilitando extensión vector en la base...")
+# Enable the pgvector extension
+print("🛠️ Enabling vector extension in database...")
 engine = create_engine(DB_URL_LOCAL)
 with engine.connect() as connection:
     connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
     connection.commit()
-print("✅ Extensión vector habilitada.")
+print("✅ Vector extension enabled.")
 
-# Crear las tablas en la base si no existen
-print("🛠️ Creando tablas en la base...")
+# Create tables in database if they don't exist
+print("🛠️ Creating tables in database...")
 Base.metadata.create_all(engine)
-print("✅ Tablas creadas con éxito.")
+print("✅ Tables created successfully.")
 
 if __name__ == "__main__": 
-    print("[+] Creando tablas...") 
+    print("[+] Creating tables...") 
     Base.metadata.create_all(engine) 
-    print("[✓] Tablas creadas correctamente.")
+    print("[✓] Tables created correctly.")

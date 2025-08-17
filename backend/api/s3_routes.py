@@ -8,21 +8,21 @@ router = APIRouter(prefix="/s3", tags=["S3 Operations"])
 @router.post("/upload")
 async def upload_text_to_s3_endpoint(request: S3UploadRequest):
     """
-    Sube texto a S3 y devuelve la información del archivo subido
+    Uploads text to S3 and returns information about the uploaded file
     """
     try:
-        # Usar bucket por defecto si no se especifica
+        # Use default bucket if not specified
         bucket = request.bucket or S3_BUCKET_NAME
         if not bucket:
             raise HTTPException(status_code=400, detail="Bucket no especificado")
         
-        # Generar nombre único para el archivo
+        # Generate unique name for the file
         import uuid
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         s3_object_name = f"gemini_texts/{timestamp}_{request.filename}.txt"
         
-        # Subir a S3
+        # Upload to S3
         upload_text_to_s3(
             request.text, 
             bucket, 
@@ -45,10 +45,10 @@ async def upload_text_to_s3_endpoint(request: S3UploadRequest):
 @router.get("/health")
 async def s3_health_check():
     """
-    Verifica la conectividad con S3
+    Verifies S3 connectivity
     """
     try:
-        # Aquí podrías agregar una verificación real de S3
+        # Here you could add a real S3 verification
         return {"status": "healthy", "service": "S3"}
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"S3 no disponible: {str(e)}") 

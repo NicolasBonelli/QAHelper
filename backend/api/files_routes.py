@@ -17,27 +17,27 @@ from config import PDF_STORAGE_DIR
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_pdf_file(file: UploadFile = File(...)):
     """
-    Sube un archivo PDF al almacenamiento local
+    Uploads a PDF file to local storage
     """
     try:
-        # Validar que sea un PDF
+        # Validate that it's a PDF
         if not file.filename.lower().endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF")
         
-        # Generar ID único para el archivo
+        # Generate unique ID for the file
         file_id = str(uuid.uuid4())
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now()
         
-        # Crear nombre de archivo único
+        # Create unique filename
         original_filename = file.filename
         safe_filename = f"{timestamp}_{file_id}_{original_filename}"
         file_path = PDF_STORAGE_DIR / safe_filename
         
-        # Guardar el archivo
+        # Save the file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Obtener tamaño del archivo
+        # Get file size
         file_size = file_path.stat().st_size
         
         return FileUploadResponse(
@@ -54,13 +54,13 @@ async def upload_pdf_file(file: UploadFile = File(...)):
 @router.get("/list", response_model=List[FileInfo])
 async def list_pdf_files():
     """
-    Lista todos los archivos PDF almacenados
+    Lists all stored PDF files
     """
     try:
         files = []
         for file_path in PDF_STORAGE_DIR.glob("*.pdf"):
             stat = file_path.stat()
-            # Extraer información del nombre del archivo
+            # Extract information from filename
             filename_parts = file_path.stem.split("_", 2)
             if len(filename_parts) >= 3:
                 timestamp, file_id, original_name = filename_parts[0], filename_parts[1], "_".join(filename_parts[2:])
@@ -86,10 +86,10 @@ async def list_pdf_files():
 @router.get("/health")
 async def files_health_check():
     """
-    Verifica el estado del servicio de archivos
+    Verifies the status of the file service
     """
     try:
-        # Verificar que el directorio existe y es accesible
+        # Verify that the directory exists and is accessible
         if not PDF_STORAGE_DIR.exists():
             PDF_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
         
