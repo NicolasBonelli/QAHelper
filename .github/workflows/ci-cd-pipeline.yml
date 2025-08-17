@@ -19,13 +19,13 @@ jobs:
       postgres:
         image: ankane/pgvector:latest
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U ${{ secrets.POSTGRES_USER }}"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -60,9 +60,9 @@ jobs:
       run: |
         sudo apt-get update -y
         sudo apt-get install -y postgresql-client
-        PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -p 5432 -c "CREATE DATABASE qahelper;" || true
-        PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -p 5432 -d qahelper -c "CREATE EXTENSION IF NOT EXISTS vector;"
-        
+        PGPASSWORD=${{ secrets.POSTGRES_PASSWORD }} psql -h 127.0.0.1 -U ${{ secrets.POSTGRES_USER }} -p 5432 -c "CREATE DATABASE qahelper;" || true
+        PGPASSWORD=${{ secrets.POSTGRES_PASSWORD }} psql -h 127.0.0.1 -U ${{ secrets.POSTGRES_USER }} -p 5432 -d qahelper -c "CREATE EXTENSION IF NOT EXISTS vector;"
+      
 
     - name: Run supervisor architecture tests (including E2E)
       run: |
