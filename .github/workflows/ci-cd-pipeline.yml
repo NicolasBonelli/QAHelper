@@ -1,10 +1,10 @@
-#name: QAHelper CI/CD Pipeline
+# name: QAHelper CI/CD Pipeline
 
 on:
   push:
-    #branches: [ main, develop ]
-  #pull_request:
-    #branches: [ main, develop ] 
+    # branches: [ main, develop ]
+  # pull_request:
+    # branches: [ main, develop ] 
 
 env:
   PYTHON_VERSION: '3.11'
@@ -19,13 +19,13 @@ jobs:
       postgres:
         image: ankane/pgvector:latest
         env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: qahelper
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U ${{ secrets.POSTGRES_USER }}"
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -57,12 +57,14 @@ jobs:
         pip install pytest pytest-cov pytest-asyncio black flake8
 
     - name: Prepare test database (qahelper) and pgvector extension
+      env:
+        POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+        POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
       run: |
         sudo apt-get update -y
         sudo apt-get install -y postgresql-client
-        PGPASSWORD=${{ secrets.POSTGRES_PASSWORD }} psql -h 127.0.0.1 -U ${{ secrets.POSTGRES_USER }} -p 5432 -c "CREATE DATABASE qahelper;" || true
-        PGPASSWORD=${{ secrets.POSTGRES_PASSWORD }} psql -h 127.0.0.1 -U ${{ secrets.POSTGRES_USER }} -p 5432 -d qahelper -c "CREATE EXTENSION IF NOT EXISTS vector;"
-      
+        PGPASSWORD=$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $POSTGRES_USER -p 5432 -c "CREATE DATABASE qahelper;" || true
+        PGPASSWORD=$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $POSTGRES_USER -p 5432 -d qahelper -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
     - name: Run supervisor architecture tests (including E2E)
       run: |
@@ -142,4 +144,3 @@ jobs:
       run: |
         echo "Production deployment completed successfully!"
         # Aquí se podría agregar notificación a Slack, email, etc.
-
