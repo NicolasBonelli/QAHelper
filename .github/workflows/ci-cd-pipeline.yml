@@ -75,7 +75,7 @@ jobs:
   # Job de Deployment (Staging)
   deploy-staging:
     runs-on: ubuntu-latest
-    needs: build-docker
+    needs: test-and-lint
     if: github.ref == 'refs/heads/develop'
     environment: staging
     
@@ -94,7 +94,7 @@ jobs:
   # Job de Deployment (Production)
   deploy-production:
     runs-on: ubuntu-latest
-    needs: build-docker
+    needs: deploy-staging
     if: github.ref == 'refs/heads/main'
     environment: production
     
