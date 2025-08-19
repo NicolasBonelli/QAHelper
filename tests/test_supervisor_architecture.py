@@ -304,7 +304,7 @@ import subprocess
 import socket
 import time
 from fastapi.testclient import TestClient
-
+from backend.utils.db_actions import insert_chat_session
 
 def _wait_for_port(host: str, port: int, timeout_seconds: int = 20):
     deadline = time.time() + timeout_seconds
@@ -360,15 +360,15 @@ def test_end_to_end_chat_with_sentiment_server(monkeypatch):
 
         # 5) Invocar API del backend con TestClient
         from backend.main import app as fastapi_app
-
+        insert_chat_session('034c36fa-2387-42b3-8a77-2b3d1bbb91a6')
         client = TestClient(fastapi_app)
-        payload = {"message": "esta app es una mierda", "session_id": "e2e-test-session"}
+        payload = {"message": "esta app es una mierda", "session_id": "034c36fa-2387-42b3-8a77-2b3d1bbb91a6"}
         resp = client.post("/chat/send", json=payload)
 
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data.get("response"), str) and len(data["response"]) > 0
-        assert data.get("session_id") == "e2e-test-session"
+        assert data.get("session_id") == "034c36fa-2387-42b3-8a77-2b3d1bbb91a6"
 
     finally:
         try:

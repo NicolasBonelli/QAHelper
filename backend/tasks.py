@@ -2,7 +2,7 @@ from celery import Celery
 import boto3
 import os
 from dotenv import load_dotenv
-from .utils.llamaindex_utils import chunk_faq_recursive
+from backend.utils.llamaindex_utils import chunk_faq_recursive
 from .celery_config import CELERY_CONFIG
 
 load_dotenv(override=True)
@@ -27,11 +27,6 @@ def process_s3_file(bucket, key):
     print(f"✅ Processing completed with doc_id: {doc_id}")
 
  
-
-
-
-
-
 @celery_app.task
 def process_local_file(file_path):
     if not os.path.exists(file_path):
